@@ -1,0 +1,2 @@
+# Package: com.mindmesh.backend.repository
+# Este pacote contém os repositórios de acesso a dados (JPA Repositories)
