@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 @EntityScan(basePackages = "com.mindmesh.backend.model")
 @EnableJpaRepositories(basePackages = "com.mindmesh.backend.repository")
 @ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional
 class DocumentIngestionServiceTest {
 
