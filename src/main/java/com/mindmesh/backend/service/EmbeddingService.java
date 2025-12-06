@@ -62,7 +62,6 @@ public class EmbeddingService {
         // Configurar Retry com backoff exponencial
         RetryConfig retryConfig = RetryConfig.custom()
                 .maxAttempts(MAX_RETRY_ATTEMPTS)
-                .waitDuration(INITIAL_BACKOFF)
                 .intervalFunction(
                         attempt -> (long) (INITIAL_BACKOFF.toMillis() * Math.pow(BACKOFF_MULTIPLIER, attempt - 1)))
                 .retryExceptions(Exception.class)
