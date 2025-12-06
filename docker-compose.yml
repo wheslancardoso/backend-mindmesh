@@ -1,10 +1,4 @@
-# ========================================
-# MindMesh Backend - Docker Compose
-# PostgreSQL + PGVector + pgAdmin4
-# ========================================
-
 services:
-  # PostgreSQL com extensão PGVector
   postgres:
     image: pgvector/pgvector:pg16
     container_name: mindmesh_postgres
@@ -12,19 +6,18 @@ services:
     environment:
       POSTGRES_DB: mindmesh_db
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin_password
+      POSTGRES_PASSWORD: admin
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d mindmesh_db"]
+      test: [ "CMD-SHELL", "pg_isready -U admin -d mindmesh_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # pgAdmin 4 - Interface web para gerenciar PostgreSQL
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: mindmesh_pgadmin
