@@ -12,6 +12,7 @@ import io.github.resilience4j.timelimiter.TimeLimiter;
 import io.github.resilience4j.timelimiter.TimeLimiterConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -30,22 +31,24 @@ import java.util.function.Supplier;
  */
 @Slf4j
 @Service
+@ConditionalOnProperty(name = "embedding.mock.enabled", havingValue = "false", matchIfMissing = true)
 public class EmbeddingService {
 
-    private static final String MODEL_NAME = "text-embedding-3-small";
+    protected static final String MODEL_NAME = "text-embedding-3-small";
+    protected static final int VECTOR_SIZE = 1536;
 
     /**
      * Limite aproximado de caracteres para 8k tokens.
      * Estimativa: 1 token ≈ 4 caracteres em inglês, ~3 em português.
      * Usando 32k caracteres como buffer seguro para ~8k tokens.
      */
-    private static final int MAX_CHARACTERS = 32_000;
+    protected static final int MAX_CHARACTERS = 32_000;
 
     // Configurações de resiliência
     private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final Duration TIMEOUT_DURATION = Duration.ofSeconds(6);
     private static final Duration INITIAL_BACKOFF = Duration.ofMillis(300);
-    private static final double BACKOFF_MULTIPLIER = 2.5; // 300ms → 750ms → 1875ms ≈ 300→1.5s→3s
+    private static final double BACKOFF_MULTIPLIER = 2.5;
 
     private final EmbeddingModel embeddingModel;
     private final Retry retry;
@@ -53,7 +56,24 @@ public class EmbeddingService {
     private final CircuitBreaker circuitBreaker;
     private final ExecutorService executor;
 
-    public EmbeddingService(@Value("${openai.api.key}") String apiKey) {
+    /**
+     * Construtor principal. Aceita apiKey null para modo mock.
+     * 
+     * @param apiKey Chave da API OpenAI (pode ser null/vazio para mock)
+     */
+    public EmbeddingService(@Value("${openai.api.key:}") String apiKey) {
+        // Se apiKey for null ou vazio, estamos em modo mock
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("EmbeddingService inicializado SEM apiKey (modo mock esperado)");
+            this.embeddingModel = null;
+            this.retry = null;
+            this.timeLimiter = null;
+            this.circuitBreaker = null;
+            this.executor = null;
+            return;
+        }
+
+        // Modo real: configurar OpenAI + resiliência
         this.embeddingModel = OpenAiEmbeddingModel.builder()
                 .apiKey(apiKey)
                 .modelName(MODEL_NAME)
@@ -90,22 +110,20 @@ public class EmbeddingService {
 
         // Configurar Circuit Breaker (DESABILITADO - pronto para ativar)
         CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.custom()
-                .failureRateThreshold(50) // Abre após 50% de falhas
+                .failureRateThreshold(50)
                 .waitDurationInOpenState(Duration.ofSeconds(30))
                 .permittedNumberOfCallsInHalfOpenState(3)
                 .slidingWindowSize(10)
                 .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
                 .build();
         this.circuitBreaker = CircuitBreaker.of("embeddingCircuitBreaker", circuitBreakerConfig);
-
-        // DESABILITAR Circuit Breaker por padrão
         circuitBreaker.transitionToDisabledState();
 
         // Executor para operações assíncronas (timeout)
         this.executor = Executors.newCachedThreadPool();
 
         log.info(
-                "EmbeddingService inicializado com modelo: {} | Retry: {} tentativas | Timeout: {}s | CircuitBreaker: DESABILITADO",
+                "EmbeddingService REAL inicializado com modelo: {} | Retry: {} tentativas | Timeout: {}s",
                 MODEL_NAME, MAX_RETRY_ATTEMPTS, TIMEOUT_DURATION.getSeconds());
     }
 
@@ -167,6 +185,9 @@ public class EmbeddingService {
      * Chamada real à API da OpenAI (sem decoradores).
      */
     private float[] callOpenAiApi(String text) {
+        if (embeddingModel == null) {
+            throw new IllegalStateException("Real embedding model is null. Mock mode should be active.");
+        }
         Response<Embedding> response = embeddingModel.embed(text);
         Embedding embedding = response.content();
         return embedding.vector();
