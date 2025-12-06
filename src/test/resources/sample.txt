@@ -1,0 +1,9 @@
+Este é um arquivo de texto de exemplo para testes do MindMesh.
+
+O Apache Tika consegue extrair texto de diversos formatos de arquivo.
+
+Aqui temos múltiplos parágrafos para testar a extração.
+
+Palavras-chave para validação: exemplo, teste, extração, Tika.
+
+Fim do arquivo de teste.

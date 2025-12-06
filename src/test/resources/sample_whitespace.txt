@@ -1,0 +1,13 @@
+Este    texto   tem    múltiplos     espaços      entre    palavras.
+
+
+
+
+E também tem múltiplas quebras de linha acima.
+
+
+
+Isso serve para testar a normalização de whitespace.
+
+
+Fim do teste    com     espaços    extras.
