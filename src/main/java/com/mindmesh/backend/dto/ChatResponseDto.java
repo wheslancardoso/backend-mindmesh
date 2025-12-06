@@ -17,22 +17,12 @@ import java.util.List;
 public class ChatResponseDto {
 
     /**
-     * Resposta gerada pelo modelo.
+     * Resposta final gerada pelo modelo.
      */
     private String answer;
 
     /**
-     * Lista de chunks usados como contexto.
+     * Chunks usados como contexto para gerar a resposta.
      */
-    private List<RetrievedChunkDto> sources;
-
-    /**
-     * Tempo de processamento em milissegundos.
-     */
-    private long processingTimeMs;
-
-    /**
-     * Número de tokens usados (se disponível).
-     */
-    private Integer tokensUsed;
+    private List<RetrievedChunkDto> chunks;
 }

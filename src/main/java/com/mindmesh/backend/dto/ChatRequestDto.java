@@ -17,26 +17,29 @@ import java.util.UUID;
 public class ChatRequestDto {
 
     /**
+     * ID do usuário dono dos documentos.
+     */
+    private UUID userId;
+
+    /**
      * Pergunta do usuário.
      */
     private String question;
 
     /**
-     * ID do usuário (para filtrar documentos).
+     * Filtros de metadata em formato JSON (opcional).
+     * Exemplo: '{"source": "pdf", "type": "report"}'
      */
-    private UUID userId;
+    private String metadataFilters;
 
     /**
-     * Filtro de metadata opcional (JSON string).
-     * Exemplo: '{"source": "pdf"}'
-     */
-    private String metadataFilter;
-
-    /**
-     * Número máximo de chunks a recuperar (default: 8).
+     * Número máximo de chunks a recuperar (opcional, default: 8).
      */
     private Integer limit;
 
+    /**
+     * Retorna o limite efetivo (default 8 se null).
+     */
     public int getEffectiveLimit() {
         return limit != null && limit > 0 ? limit : 8;
     }

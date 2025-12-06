@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Serviço de chat com RAG (Retrieval-Augmented Generation).
@@ -32,7 +31,7 @@ public class ChatService {
             Seja preciso, objetivo e cite as fontes quando possível.
             """;
 
-    private static final int MAX_SNIPPET_LENGTH = 200;
+    private static final int MAX_SNIPPET_LENGTH = 300;
 
     private final EmbeddingService embeddingService;
     private final DocumentChunkRepository documentChunkRepository;
@@ -85,7 +84,7 @@ public class ChatService {
             List<DocumentChunk> retrievedChunks = documentChunkRepository.findSimilar(
                     queryVector,
                     request.getUserId(),
-                    request.getMetadataFilter(),
+                    request.getMetadataFilters(),
                     request.getEffectiveLimit());
 
             log.info("Recuperados {} chunks", retrievedChunks.size());
@@ -94,8 +93,7 @@ public class ChatService {
                 return ChatResponseDto.builder()
                         .answer("Não encontrei documentos relevantes para responder sua pergunta. " +
                                 "Por favor, verifique se você já fez upload de documentos relacionados ao tema.")
-                        .sources(List.of())
-                        .processingTimeMs(System.currentTimeMillis() - startTime)
+                        .chunks(List.of())
                         .build();
             }
 
@@ -115,20 +113,19 @@ public class ChatService {
             log.info("Chamando modelo de chat...");
             String answer = chatModel.generate(prompt);
 
-            // 7. Montar resposta com sources
-            List<RetrievedChunkDto> sources = retrievedChunks.stream()
+            // 7. Montar resposta com chunks
+            List<RetrievedChunkDto> chunks = retrievedChunks.stream()
                     .map(this::toRetrievedChunkDto)
                     .collect(Collectors.toList());
 
             long processingTime = System.currentTimeMillis() - startTime;
 
             log.info("Resposta gerada com sucesso. Chunks usados: {}, Tempo: {}ms",
-                    sources.size(), processingTime);
+                    chunks.size(), processingTime);
 
             return ChatResponseDto.builder()
                     .answer(answer)
-                    .sources(sources)
-                    .processingTimeMs(processingTime)
+                    .chunks(chunks)
                     .build();
 
         } catch (Exception e) {
@@ -177,8 +174,9 @@ public class ChatService {
         return RetrievedChunkDto.builder()
                 .id(chunk.getId())
                 .documentId(chunk.getDocumentId())
-                .snippet(truncate(chunk.getContent(), MAX_SNIPPET_LENGTH))
+                .contentSnippet(truncate(chunk.getContent(), MAX_SNIPPET_LENGTH))
                 .chunkIndex(chunk.getChunkIndex())
+                .tokenCount(chunk.getTokenCount())
                 .build();
     }
 

@@ -27,9 +27,9 @@ public class RetrievedChunkDto {
     private UUID documentId;
 
     /**
-     * Trecho do conteúdo (snippet).
+     * Trecho reduzido do conteúdo (ex: primeiros 300 chars).
      */
-    private String snippet;
+    private String contentSnippet;
 
     /**
      * Índice do chunk no documento.
@@ -37,7 +37,7 @@ public class RetrievedChunkDto {
     private Integer chunkIndex;
 
     /**
-     * Score de similaridade (opcional, se disponível).
+     * Contagem aproximada de tokens.
      */
-    private Double similarityScore;
+    private Integer tokenCount;
 }
