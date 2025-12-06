@@ -55,6 +55,13 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- H2 Database: Banco em memória para testes -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 		<!-- PGVector: Suporte a embeddings vetoriais no PostgreSQL -->
 		<dependency>
 			<groupId>com.pgvector</groupId>
