@@ -1,5 +1,6 @@
 package com.mindmesh.backend.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,30 +15,21 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Schema(description = "Chunk de documento recuperado pela busca semântica")
 public class RetrievedChunkDto {
 
-    /**
-     * ID do chunk.
-     */
+    @Schema(description = "ID único do chunk (UUID)", example = "550e8400-e29b-41d4-a716-446655440001")
     private UUID id;
 
-    /**
-     * ID do documento pai.
-     */
+    @Schema(description = "ID do documento pai ao qual este chunk pertence", example = "550e8400-e29b-41d4-a716-446655440000")
     private UUID documentId;
 
-    /**
-     * Trecho reduzido do conteúdo (ex: primeiros 300 chars).
-     */
+    @Schema(description = "Trecho reduzido do conteúdo do chunk (primeiros ~300 caracteres)", example = "O MindMesh é uma plataforma de busca semântica que utiliza técnicas de RAG para processar documentos...")
     private String contentSnippet;
 
-    /**
-     * Índice do chunk no documento.
-     */
+    @Schema(description = "Índice sequencial do chunk dentro do documento (começa em 0)", example = "3", minimum = "0")
     private Integer chunkIndex;
 
-    /**
-     * Contagem aproximada de tokens.
-     */
+    @Schema(description = "Contagem aproximada de tokens do chunk", example = "156", minimum = "0")
     private Integer tokenCount;
 }

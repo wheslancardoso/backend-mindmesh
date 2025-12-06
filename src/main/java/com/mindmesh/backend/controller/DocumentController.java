@@ -4,6 +4,13 @@ import com.mindmesh.backend.model.Document;
 import com.mindmesh.backend.repository.DocumentChunkRepository;
 import com.mindmesh.backend.repository.DocumentRepository;
 import com.mindmesh.backend.service.DocumentIngestionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -25,24 +32,47 @@ import java.util.UUID;
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*") // TODO: Configurar CORS adequadamente em produção
+@Tag(name = "Documents", description = """
+        Gerenciamento de documentos do MindMesh.
+
+        Permite upload de arquivos (PDF, DOCX, TXT), processamento automático
+        com extração de texto, chunking inteligente e geração de embeddings vetoriais.
+        """)
 public class DocumentController {
 
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
     private final DocumentIngestionService documentIngestionService;
 
-    /**
-     * Upload e ingestão de documento.
-     * Extrai texto, gera chunks com embeddings e persiste.
-     *
-     * @param userId ID do usuário dono do documento
-     * @param file   Arquivo a ser processado (PDF, DOCX, TXT, etc.)
-     * @return ID do documento criado
-     */
+    @Operation(summary = "Upload de documento", description = """
+            Faz upload e processamento completo de um documento.
+
+            O processo inclui:
+            1. Extração de texto (Apache Tika)
+            2. Divisão em chunks semânticos
+            3. Geração de embeddings via OpenAI
+            4. Persistência no banco com PGVector
+
+            Formatos suportados: PDF, DOCX, DOC, TXT, MD, HTML
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Documento processado com sucesso", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                    {
+                        "documentId": "550e8400-e29b-41d4-a716-446655440000",
+                        "filename": "relatorio.pdf",
+                        "size": 102400,
+                        "message": "Documento processado com sucesso"
+                    }
+                    """))),
+            @ApiResponse(responseCode = "400", description = "Arquivo inválido ou vazio"),
+            @ApiResponse(responseCode = "500", description = "Erro interno ao processar documento")
+    })
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadDocument(
-            @RequestParam("userId") UUID userId,
-            @RequestParam("file") MultipartFile file) throws IOException {
+            @Parameter(description = "ID do usuário dono do documento (UUID)", required = true, example = "550e8400-e29b-41d4-a716-446655440000") @RequestParam("userId") UUID userId,
+
+            @Parameter(description = "Arquivo a ser processado (PDF, DOCX, TXT, etc.)", required = true) @RequestParam("file") MultipartFile file)
+            throws IOException {
 
         // Validar arquivo
         if (file == null || file.isEmpty()) {
@@ -69,15 +99,18 @@ public class DocumentController {
                 "message", "Documento processado com sucesso"));
     }
 
-    /**
-     * Lista documentos de um usuário.
-     *
-     * @param userId ID do usuário
-     * @return Lista de documentos ordenados por data de criação (mais recente
-     *         primeiro)
-     */
+    @Operation(summary = "Listar documentos", description = """
+            Retorna todos os documentos de um usuário específico.
+            Os documentos são ordenados por data de criação (mais recente primeiro).
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista de documentos retornada com sucesso"),
+            @ApiResponse(responseCode = "400", description = "userId inválido")
+    })
     @GetMapping("/list")
-    public ResponseEntity<List<Document>> listDocuments(@RequestParam("userId") UUID userId) {
+    public ResponseEntity<List<Document>> listDocuments(
+            @Parameter(description = "ID do usuário para filtrar documentos", required = true, example = "550e8400-e29b-41d4-a716-446655440000") @RequestParam("userId") UUID userId) {
+
         log.info("Listando documentos do usuário: {}", userId);
 
         List<Document> documents = documentRepository.findByUserIdOrderByCreatedAtDesc(userId);
@@ -87,14 +120,15 @@ public class DocumentController {
         return ResponseEntity.ok(documents);
     }
 
-    /**
-     * Obtém detalhes de um documento específico.
-     *
-     * @param documentId ID do documento
-     * @return Documento encontrado
-     */
+    @Operation(summary = "Obter documento por ID", description = "Retorna os detalhes completos de um documento específico pelo seu ID.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Documento encontrado"),
+            @ApiResponse(responseCode = "400", description = "Documento não encontrado")
+    })
     @GetMapping("/{documentId}")
-    public ResponseEntity<Document> getDocument(@PathVariable UUID documentId) {
+    public ResponseEntity<Document> getDocument(
+            @Parameter(description = "ID único do documento (UUID)", required = true, example = "550e8400-e29b-41d4-a716-446655440000") @PathVariable UUID documentId) {
+
         log.info("Buscando documento: {}", documentId);
 
         Document document = documentRepository.findById(documentId)
@@ -103,14 +137,18 @@ public class DocumentController {
         return ResponseEntity.ok(document);
     }
 
-    /**
-     * Remove um documento e seus chunks.
-     *
-     * @param documentId ID do documento a remover
-     * @return 204 No Content
-     */
+    @Operation(summary = "Remover documento", description = """
+            Remove um documento e todos os seus chunks associados.
+            Esta operação é irreversível e remove também os embeddings do banco vetorial.
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Documento removido com sucesso"),
+            @ApiResponse(responseCode = "400", description = "Documento não encontrado")
+    })
     @DeleteMapping("/{documentId}")
-    public ResponseEntity<Void> deleteDocument(@PathVariable UUID documentId) {
+    public ResponseEntity<Void> deleteDocument(
+            @Parameter(description = "ID do documento a ser removido", required = true, example = "550e8400-e29b-41d4-a716-446655440000") @PathVariable UUID documentId) {
+
         log.info("Removendo documento: {}", documentId);
 
         // Verificar se documento existe
@@ -129,15 +167,32 @@ public class DocumentController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Reprocessa um documento existente.
-     * Remove chunks antigos e gera novos com embeddings atualizados.
-     *
-     * @param documentId ID do documento a reprocessar
-     * @return Número de chunks gerados
-     */
+    @Operation(summary = "Reprocessar documento", description = """
+            Reprocessa um documento existente, gerando novos chunks e embeddings.
+
+            Útil quando:
+            - O modelo de embeddings foi atualizado
+            - A estratégia de chunking foi alterada
+            - Houve erro no processamento original
+
+            Remove todos os chunks antigos antes de gerar os novos.
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Documento reprocessado com sucesso", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                    {
+                        "documentId": "550e8400-e29b-41d4-a716-446655440000",
+                        "chunksGenerated": 15,
+                        "filename": "relatorio.pdf",
+                        "message": "Documento reprocessado com sucesso"
+                    }
+                    """))),
+            @ApiResponse(responseCode = "400", description = "Documento não encontrado"),
+            @ApiResponse(responseCode = "500", description = "Erro ao reprocessar documento")
+    })
     @PostMapping("/{documentId}/reprocess")
-    public ResponseEntity<Map<String, Object>> reprocessDocument(@PathVariable UUID documentId) {
+    public ResponseEntity<Map<String, Object>> reprocessDocument(
+            @Parameter(description = "ID do documento a ser reprocessado", required = true, example = "550e8400-e29b-41d4-a716-446655440000") @PathVariable UUID documentId) {
+
         log.info("Reprocessando documento: {}", documentId);
 
         int chunksGenerated = documentIngestionService.reprocessDocument(documentId);
