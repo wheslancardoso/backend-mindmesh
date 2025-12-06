@@ -29,259 +29,267 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ChatController.class)
 class ChatControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+        @Autowired
+        private ObjectMapper objectMapper;
 
-    @MockBean
-    private ChatService chatService;
+        @MockBean
+        private ChatService chatService;
 
-    private static final UUID TEST_USER_ID = UUID.randomUUID();
-    private static final UUID TEST_DOCUMENT_ID = UUID.randomUUID();
-    private static final UUID TEST_CHUNK_ID = UUID.randomUUID();
+        private static final UUID TEST_USER_ID = UUID.randomUUID();
+        private static final UUID TEST_DOCUMENT_ID = UUID.randomUUID();
+        private static final UUID TEST_CHUNK_ID = UUID.randomUUID();
 
-    /**
-     * Cria uma resposta de chat simulada.
-     */
-    private ChatResponseDto createMockResponse(String answer, int chunkCount) {
-        List<RetrievedChunkDto> chunks = java.util.stream.IntStream.range(0, chunkCount)
-                .mapToObj(i -> RetrievedChunkDto.builder()
-                        .id(UUID.randomUUID())
-                        .documentId(TEST_DOCUMENT_ID)
-                        .contentSnippet("Snippet do chunk " + i)
-                        .chunkIndex(i)
-                        .tokenCount(50)
-                        .build())
-                .toList();
+        /**
+         * Cria uma resposta de chat simulada.
+         */
+        private ChatResponseDto createMockResponse(String answer, int chunkCount) {
+                List<RetrievedChunkDto> chunks = java.util.stream.IntStream.range(0, chunkCount)
+                                .mapToObj(i -> RetrievedChunkDto.builder()
+                                                .id(UUID.randomUUID())
+                                                .documentId(TEST_DOCUMENT_ID)
+                                                .contentSnippet("Snippet do chunk " + i)
+                                                .chunkIndex(i)
+                                                .tokenCount(50)
+                                                .build())
+                                .toList();
 
-        return ChatResponseDto.builder()
-                .answer(answer)
-                .chunks(chunks)
-                .build();
-    }
+                return ChatResponseDto.builder()
+                                .answer(answer)
+                                .chunks(chunks)
+                                .build();
+        }
 
-    @Test
-    @DisplayName("POST /api/chat - Deve retornar resposta com sucesso")
-    void testChat_success() throws Exception {
-        // Arrange
-        ChatRequestDto request = ChatRequestDto.builder()
-                .userId(TEST_USER_ID)
-                .question("Qual é o conteúdo dos documentos?")
-                .metadataFilters(null)
-                .limit(5)
-                .build();
+        @Test
+        @DisplayName("POST /api/chat - Deve retornar resposta com sucesso")
+        void testChat_success() throws Exception {
+                // Arrange
+                ChatRequestDto request = ChatRequestDto.builder()
+                                .userId(TEST_USER_ID)
+                                .question("Qual é o conteúdo dos documentos?")
+                                .metadataFilters(null)
+                                .limit(5)
+                                .build();
 
-        ChatResponseDto mockResponse = createMockResponse(
-                "Esta é a resposta gerada pelo modelo baseada nos documentos.",
-                3);
+                ChatResponseDto mockResponse = createMockResponse(
+                                "Esta é a resposta gerada pelo modelo baseada nos documentos.",
+                                3);
 
-        when(chatService.chat(any(ChatRequestDto.class))).thenReturn(mockResponse);
+                when(chatService.chat(any(ChatRequestDto.class))).thenReturn(mockResponse);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.answer").value("Esta é a resposta gerada pelo modelo baseada nos documentos."))
-                .andExpect(jsonPath("$.chunks").isArray())
-                .andExpect(jsonPath("$.chunks", hasSize(3)))
-                .andExpect(jsonPath("$.chunks[0].contentSnippet").value("Snippet do chunk 0"))
-                .andExpect(jsonPath("$.chunks[0].chunkIndex").value(0))
-                .andExpect(jsonPath("$.chunks[0].tokenCount").value(50));
+                // Act & Assert
+                mockMvc.perform(post("/api/chat")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isOk())
+                                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                                .andExpect(jsonPath("$.answer")
+                                                .value("Esta é a resposta gerada pelo modelo baseada nos documentos."))
+                                .andExpect(jsonPath("$.chunks").isArray())
+                                .andExpect(jsonPath("$.chunks", hasSize(3)))
+                                .andExpect(jsonPath("$.chunks[0].contentSnippet").value("Snippet do chunk 0"))
+                                .andExpect(jsonPath("$.chunks[0].chunkIndex").value(0))
+                                .andExpect(jsonPath("$.chunks[0].tokenCount").value(50));
 
-        // Verificar que o service foi chamado
-        verify(chatService).chat(any(ChatRequestDto.class));
+                // Verificar que o service foi chamado
+                verify(chatService).chat(any(ChatRequestDto.class));
 
-        System.out.println("Chat com sucesso - 3 chunks retornados");
-    }
+                System.out.println("Chat com sucesso - 3 chunks retornados");
+        }
 
-    @Test
-    @DisplayName("POST /api/chat - Deve retornar 400 para pergunta nula")
-    void testChat_invalidRequest_nullQuestion() throws Exception {
-        // Arrange
-        ChatRequestDto request = ChatRequestDto.builder()
-                .userId(TEST_USER_ID)
-                .question(null)
-                .build();
+        @Test
+        @DisplayName("POST /api/chat - Deve retornar 400 para pergunta nula")
+        void testChat_invalidRequest_nullQuestion() throws Exception {
+                // Arrange
+                ChatRequestDto request = ChatRequestDto.builder()
+                                .userId(TEST_USER_ID)
+                                .question(null)
+                                .build();
 
-        when(chatService.chat(any(ChatRequestDto.class)))
-                .thenThrow(new IllegalArgumentException("A pergunta não pode estar vazia"));
+                when(chatService.chat(any(ChatRequestDto.class)))
+                                .thenThrow(new IllegalArgumentException("A pergunta não pode estar vazia"));
 
-        // Act & Assert
-        mockMvc.perform(post("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Requisição inválida"))
-                .andExpect(jsonPath("$.message").value(containsString("pergunta")));
+                // Act & Assert
+                mockMvc.perform(post("/api/chat")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.error").value("Requisição inválida"))
+                                .andExpect(jsonPath("$.message").value(containsString("pergunta")));
 
-        System.out.println("Pergunta nula rejeitada com status 400");
-    }
+                System.out.println("Pergunta nula rejeitada com status 400");
+        }
 
-    @Test
-    @DisplayName("POST /api/chat - Deve retornar 400 para pergunta vazia")
-    void testChat_invalidRequest_emptyQuestion() throws Exception {
-        // Arrange
-        ChatRequestDto request = ChatRequestDto.builder()
-                .userId(TEST_USER_ID)
-                .question("")
-                .build();
+        @Test
+        @DisplayName("POST /api/chat - Deve retornar 400 para pergunta vazia")
+        void testChat_invalidRequest_emptyQuestion() throws Exception {
+                // Arrange
+                ChatRequestDto request = ChatRequestDto.builder()
+                                .userId(TEST_USER_ID)
+                                .question("")
+                                .build();
 
-        when(chatService.chat(any(ChatRequestDto.class)))
-                .thenThrow(new IllegalArgumentException("A pergunta não pode estar vazia"));
+                when(chatService.chat(any(ChatRequestDto.class)))
+                                .thenThrow(new IllegalArgumentException("A pergunta não pode estar vazia"));
 
-        // Act & Assert
-        mockMvc.perform(post("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").exists());
+                // Act & Assert
+                mockMvc.perform(post("/api/chat")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.error").exists());
 
-        System.out.println("Pergunta vazia rejeitada com status 400");
-    }
+                System.out.println("Pergunta vazia rejeitada com status 400");
+        }
 
-    @Test
-    @DisplayName("POST /api/chat - Deve retornar 400 para userId nulo")
-    void testChat_invalidRequest_nullUserId() throws Exception {
-        // Arrange
-        ChatRequestDto request = ChatRequestDto.builder()
-                .userId(null)
-                .question("Qual é o conteúdo?")
-                .build();
+        @Test
+        @DisplayName("POST /api/chat - Deve retornar 400 para userId nulo")
+        void testChat_invalidRequest_nullUserId() throws Exception {
+                // Arrange
+                ChatRequestDto request = ChatRequestDto.builder()
+                                .userId(null)
+                                .question("Qual é o conteúdo?")
+                                .build();
 
-        when(chatService.chat(any(ChatRequestDto.class)))
-                .thenThrow(new IllegalArgumentException("userId é obrigatório"));
+                when(chatService.chat(any(ChatRequestDto.class)))
+                                .thenThrow(new IllegalArgumentException("userId é obrigatório"));
 
-        // Act & Assert
-        mockMvc.perform(post("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Requisição inválida"))
-                .andExpect(jsonPath("$.message").value(containsString("userId")));
+                // Act & Assert
+                mockMvc.perform(post("/api/chat")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.error").value("Requisição inválida"))
+                                .andExpect(jsonPath("$.message").value(containsString("userId")));
 
-        System.out.println("UserId nulo rejeitado com status 400");
-    }
+                System.out.println("UserId nulo rejeitado com status 400");
+        }
 
-    @Test
-    @DisplayName("POST /api/chat - Deve retornar 500 para erro interno")
-    void testChat_internalError() throws Exception {
-        // Arrange
-        ChatRequestDto request = ChatRequestDto.builder()
-                .userId(TEST_USER_ID)
-                .question("Pergunta que causa erro")
-                .build();
+        @Test
+        @DisplayName("POST /api/chat - Deve retornar 500 para erro interno")
+        void testChat_internalError() throws Exception {
+                // Arrange
+                ChatRequestDto request = ChatRequestDto.builder()
+                                .userId(TEST_USER_ID)
+                                .question("Pergunta que causa erro")
+                                .build();
 
-        when(chatService.chat(any(ChatRequestDto.class)))
-                .thenThrow(new RuntimeException("Erro ao conectar com OpenAI"));
+                when(chatService.chat(any(ChatRequestDto.class)))
+                                .thenThrow(new RuntimeException("Erro ao conectar com OpenAI"));
 
-        // Act & Assert
-        mockMvc.perform(post("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value("Erro interno"))
-                .andExpect(jsonPath("$.message").value("Falha ao processar a requisição. Tente novamente."));
+                // Act & Assert
+                mockMvc.perform(post("/api/chat")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isInternalServerError())
+                                .andExpect(jsonPath("$.error").value("Erro interno"))
+                                .andExpect(jsonPath("$.message")
+                                                .value("Falha ao processar a requisição. Tente novamente."));
 
-        System.out.println("Erro interno retornou status 500");
-    }
+                System.out.println("Erro interno retornou status 500");
+        }
 
-    @Test
-    @DisplayName("POST /api/chat - Deve retornar array vazio quando não há chunks")
-    void testChat_returnsEmptySources() throws Exception {
-        // Arrange
-        ChatRequestDto request = ChatRequestDto.builder()
-                .userId(TEST_USER_ID)
-                .question("Pergunta sem documentos relevantes")
-                .build();
+        @Test
+        @DisplayName("POST /api/chat - Deve retornar array vazio quando não há chunks")
+        void testChat_returnsEmptySources() throws Exception {
+                // Arrange
+                ChatRequestDto request = ChatRequestDto.builder()
+                                .userId(TEST_USER_ID)
+                                .question("Pergunta sem documentos relevantes")
+                                .build();
 
-        ChatResponseDto mockResponse = ChatResponseDto.builder()
-                .answer("Não encontrei documentos relevantes para responder sua pergunta.")
-                .chunks(List.of()) // Lista vazia
-                .build();
+                ChatResponseDto mockResponse = ChatResponseDto.builder()
+                                .answer("Não encontrei documentos relevantes para responder sua pergunta.")
+                                .chunks(List.of()) // Lista vazia
+                                .build();
 
-        when(chatService.chat(any(ChatRequestDto.class))).thenReturn(mockResponse);
+                when(chatService.chat(any(ChatRequestDto.class))).thenReturn(mockResponse);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.answer").value(containsString("Não encontrei")))
-                .andExpect(jsonPath("$.chunks").isArray())
-                .andExpect(jsonPath("$.chunks", hasSize(0)));
+                // Act & Assert
+                mockMvc.perform(post("/api/chat")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.answer").value(containsString("Não encontrei")))
+                                .andExpect(jsonPath("$.chunks").isArray())
+                                .andExpect(jsonPath("$.chunks", hasSize(0)));
 
-        System.out.println("Resposta sem chunks retornada corretamente");
-    }
+                System.out.println("Resposta sem chunks retornada corretamente");
+        }
 
-    @Test
-    @DisplayName("POST /api/chat - Deve aceitar metadataFilters")
-    void testChat_withMetadataFilters() throws Exception {
-        // Arrange
-        ChatRequestDto request = ChatRequestDto.builder()
-                .userId(TEST_USER_ID)
-                .question("Buscar apenas PDFs")
-                .metadataFilters("{\"source\": \"pdf\"}")
-                .limit(10)
-                .build();
+        @Test
+        @DisplayName("POST /api/chat - Deve aceitar metadataFilters")
+        void testChat_withMetadataFilters() throws Exception {
+                // Arrange
+                UUID userId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
 
-        ChatResponseDto mockResponse = createMockResponse("Resposta filtrada", 2);
+                ChatResponseDto mockResponse = ChatResponseDto.builder()
+                                .answer("ok")
+                                .chunks(List.of())
+                                .build();
 
-        when(chatService.chat(any(ChatRequestDto.class))).thenReturn(mockResponse);
+                when(chatService.chat(any(ChatRequestDto.class))).thenReturn(mockResponse);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.answer").value("Resposta filtrada"))
-                .andExpect(jsonPath("$.chunks", hasSize(2)));
+                String requestBody = """
+                                {
+                                    "userId": "123e4567-e89b-12d3-a456-426614174000",
+                                    "question": "Teste com metadados",
+                                    "metadataFilters": "pdf",
+                                    "limit": 5
+                                }
+                                """;
 
-        // Verificar que o service recebeu os filtros
-        verify(chatService).chat(argThat(req -> req.getMetadataFilters() != null &&
-                req.getMetadataFilters().contains("pdf")));
+                // Act & Assert
+                mockMvc.perform(post("/api/chat")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody))
+                                .andExpect(status().isOk());
 
-        System.out.println("MetadataFilters aceitos corretamente");
-    }
+                // Verificar que o service recebeu os filtros corretos
+                verify(chatService).chat(argThat(req -> "pdf".equals(req.getMetadataFilters())
+                                && req.getUserId().equals(userId)
+                                && "Teste com metadados".equals(req.getQuestion())));
 
-    @Test
-    @DisplayName("POST /api/chat - Deve validar estrutura dos chunks retornados")
-    void testChat_validateChunkStructure() throws Exception {
-        // Arrange
-        ChatRequestDto request = ChatRequestDto.builder()
-                .userId(TEST_USER_ID)
-                .question("Validar estrutura")
-                .build();
+                System.out.println("MetadataFilters aceitos corretamente");
+        }
 
-        RetrievedChunkDto chunk = RetrievedChunkDto.builder()
-                .id(TEST_CHUNK_ID)
-                .documentId(TEST_DOCUMENT_ID)
-                .contentSnippet("Este é o snippet de teste")
-                .chunkIndex(0)
-                .tokenCount(75)
-                .build();
+        @Test
+        @DisplayName("POST /api/chat - Deve validar estrutura dos chunks retornados")
+        void testChat_validateChunkStructure() throws Exception {
+                // Arrange
+                ChatRequestDto request = ChatRequestDto.builder()
+                                .userId(TEST_USER_ID)
+                                .question("Validar estrutura")
+                                .build();
 
-        ChatResponseDto mockResponse = ChatResponseDto.builder()
-                .answer("Resposta de teste")
-                .chunks(List.of(chunk))
-                .build();
+                RetrievedChunkDto chunk = RetrievedChunkDto.builder()
+                                .id(TEST_CHUNK_ID)
+                                .documentId(TEST_DOCUMENT_ID)
+                                .contentSnippet("Este é o snippet de teste")
+                                .chunkIndex(0)
+                                .tokenCount(75)
+                                .build();
 
-        when(chatService.chat(any(ChatRequestDto.class))).thenReturn(mockResponse);
+                ChatResponseDto mockResponse = ChatResponseDto.builder()
+                                .answer("Resposta de teste")
+                                .chunks(List.of(chunk))
+                                .build();
 
-        // Act & Assert
-        mockMvc.perform(post("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.chunks[0].id").value(TEST_CHUNK_ID.toString()))
-                .andExpect(jsonPath("$.chunks[0].documentId").value(TEST_DOCUMENT_ID.toString()))
-                .andExpect(jsonPath("$.chunks[0].contentSnippet").value("Este é o snippet de teste"))
-                .andExpect(jsonPath("$.chunks[0].chunkIndex").value(0))
-                .andExpect(jsonPath("$.chunks[0].tokenCount").value(75));
+                when(chatService.chat(any(ChatRequestDto.class))).thenReturn(mockResponse);
 
-        System.out.println("Estrutura dos chunks validada corretamente");
-    }
+                // Act & Assert
+                mockMvc.perform(post("/api/chat")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.chunks[0].id").value(TEST_CHUNK_ID.toString()))
+                                .andExpect(jsonPath("$.chunks[0].documentId").value(TEST_DOCUMENT_ID.toString()))
+                                .andExpect(jsonPath("$.chunks[0].contentSnippet").value("Este é o snippet de teste"))
+                                .andExpect(jsonPath("$.chunks[0].chunkIndex").value(0))
+                                .andExpect(jsonPath("$.chunks[0].tokenCount").value(75));
+
+                System.out.println("Estrutura dos chunks validada corretamente");
+        }
 }
