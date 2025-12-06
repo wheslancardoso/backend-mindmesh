@@ -13,7 +13,8 @@ import java.util.UUID;
 
 /**
  * Representa um chunk de documento com embedding vetorial para busca semântica.
- * Armazena fragmentos de texto com seus embeddings para RAG (Retrieval-Augmented Generation).
+ * Armazena fragmentos de texto com seus embeddings para RAG
+ * (Retrieval-Augmented Generation).
  */
 @Entity
 @Table(name = "document_chunks")
@@ -33,7 +34,7 @@ public class DocumentChunk {
     @Column(name = "content", columnDefinition = "TEXT", nullable = false)
     private String content;
 
-    @Column(name = "embedding", columnDefinition = "vector(1536)")
+    @Column(name = "embedding")
     private float[] embedding;
 
     @JdbcTypeCode(SqlTypes.JSON)

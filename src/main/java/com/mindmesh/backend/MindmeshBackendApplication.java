@@ -3,7 +3,7 @@ package com.mindmesh.backend;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.mindmesh.backend")
 public class MindmeshBackendApplication {
 
 	public static void main(String[] args) {
