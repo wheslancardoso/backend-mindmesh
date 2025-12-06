@@ -1,32 +1,23 @@
-version: "3.9"
-
 services:
-
-  # ======================
-  # PostgreSQL + PGVector
-  # ======================
   postgres:
     image: pgvector/pgvector:pg16
     container_name: mindmesh_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: mindmesh_db
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: ${POSTGRES_DB:-mindmesh_db}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U admin -d mindmesh_db" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-mindmesh_db}" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ============
-  # pgAdmin 4
-  # ============
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: mindmesh_pgadmin
@@ -43,24 +34,27 @@ services:
       postgres:
         condition: service_healthy
 
-  # ====================
-  # Backend Spring Boot
-  # ====================
   backend:
     build: .
     container_name: mindmesh_backend
     restart: unless-stopped
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mindmesh_db
-      SPRING_DATASOURCE_USERNAME: admin
-      SPRING_DATASOURCE_PASSWORD: admin
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-    ports:
-      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      # Banco de dados
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/mindmesh_db}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-admin}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-admin}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      # Profile Spring
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+    ports:
+      - "8080:8080"
 
 volumes:
   postgres_data:
