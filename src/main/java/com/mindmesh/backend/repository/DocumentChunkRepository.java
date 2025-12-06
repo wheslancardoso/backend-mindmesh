@@ -10,7 +10,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Repositório para operações de persistência e busca semântica de DocumentChunk.
+ * Repositório para operações de persistência e busca semântica de
+ * DocumentChunk.
  * Utiliza PGVector com índice HNSW para busca por similaridade vetorial.
  */
 @Repository
@@ -20,27 +21,27 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
      * Busca chunks similares usando distância cosseno (operador <=>) do PGVector.
      * Filtra por userId e opcionalmente por metadata JSONB.
      *
-     * @param queryVector Vetor de embedding da query (1536 dimensões)
-     * @param userId      ID do usuário para filtrar documentos
-     * @param metadata    Filtro JSONB opcional (ex: '{"type": "pdf"}')
-     * @param limit       Número máximo de resultados
+     * @param queryVector     Vetor de embedding da query (1536 dimensões)
+     * @param userId          ID do usuário para filtrar documentos
+     * @param metadataFilters Filtro JSONB opcional (ex: '{"type": "pdf"}'), null
+     *                        para ignorar
+     * @param limit           Número máximo de resultados
      * @return Lista de chunks ordenados por similaridade (mais similar primeiro)
      */
     @Query(value = """
-        SELECT dc.*
-        FROM document_chunks dc
-        JOIN documents d ON d.id = dc.document_id
-        WHERE d.user_id = :userId
-          AND (:metadata IS NULL OR dc.metadata @> CAST(:metadata AS jsonb))
-        ORDER BY dc.embedding <=> CAST(:queryVector AS vector)
-        LIMIT :limit
-        """, nativeQuery = true)
+            SELECT dc.*
+            FROM document_chunks dc
+            JOIN documents d ON d.id = dc.document_id
+            WHERE d.user_id = :userId
+              AND (:metadataFilters IS NULL OR dc.metadata @> CAST(:metadataFilters AS jsonb))
+            ORDER BY dc.embedding <=> CAST(:queryVector AS vector)
+            LIMIT :limit
+            """, nativeQuery = true)
     List<DocumentChunk> findSimilar(
             @Param("queryVector") float[] queryVector,
             @Param("userId") UUID userId,
-            @Param("metadata") String metadata,
-            @Param("limit") int limit
-    );
+            @Param("metadataFilters") String metadataFilters,
+            @Param("limit") int limit);
 
     /**
      * Overload sem filtro de metadata.
