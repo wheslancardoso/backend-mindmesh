@@ -61,6 +61,13 @@
 			<artifactId>pgvector</artifactId>
 			<version>0.1.6</version>
 		</dependency>
+
+		<!-- LangChain4j: Integração com OpenAI para embeddings -->
+		<dependency>
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-open-ai</artifactId>
+			<version>0.35.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>
