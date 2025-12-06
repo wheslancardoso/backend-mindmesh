@@ -116,7 +116,7 @@ curl -s http://localhost:8080/actuator/health | jq .
 | Problema | Solução |
 |----------|---------|
 | `Connection refused` | Verificar se Docker está rodando: `docker-compose ps` |
-| `unknown type: vector` | Verificar `VectorConfig.java` e dependência `pgvector` no `pom.xml` |
+| `unknown type: vector` | Verificar se extensão pgvector está instalada no PostgreSQL |
 | `relation "documents" does not exist` | Criar entidade `Document.java` (FK referenciada na query) |
 | `HikariPool-1 - Connection is not available` | Verificar credenciais no `application.properties` |
 
