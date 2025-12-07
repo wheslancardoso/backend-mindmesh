@@ -1,24 +1,26 @@
 package com.mindmesh.backend.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.hypersistence.utils.hibernate.type.array.FloatArrayType;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Type;
 import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
 
 /**
  * Representa um chunk de documento com embedding vetorial para busca semântica.
- * Armazena fragmentos de texto com seus embeddings para RAG
- * (Retrieval-Augmented Generation).
+ * Armazena fragmentos de texto com seus embeddings para RAG.
+ * 
+ * O campo embedding usa o tipo VECTOR(1536) do PGVector para busca por
+ * similaridade.
  */
 @Entity
 @Table(name = "document_chunks")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -34,7 +36,12 @@ public class DocumentChunk {
     @Column(name = "content", columnDefinition = "TEXT", nullable = false)
     private String content;
 
-    @Column(name = "embedding")
+    /**
+     * Embedding vetorial de 1536 dimensões gerado pelo modelo OpenAI.
+     * Armazenado como tipo VECTOR(1536) no PostgreSQL via PGVector.
+     */
+    @Type(FloatArrayType.class)
+    @Column(name = "embedding", columnDefinition = "vector(1536)")
     private float[] embedding;
 
     @JdbcTypeCode(SqlTypes.JSON)

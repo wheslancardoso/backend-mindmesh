@@ -70,6 +70,13 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- Hypersistence Utils: Suporte a tipos PostgreSQL (VECTOR, ARRAY, JSONB) -->
+		<dependency>
+			<groupId>io.hypersistence</groupId>
+			<artifactId>hypersistence-utils-hibernate-63</artifactId>
+			<version>3.7.3</version>
+		</dependency>
+
 		<!-- PGVector: Suporte a embeddings vetoriais no PostgreSQL -->
 		<dependency>
 			<groupId>com.pgvector</groupId>

@@ -1,0 +1,8 @@
+feat(db): Implementa gerenciamento explícito de schema e mapeamento PGVector
+
+- Adiciona o script `init-db/01-init-schema.sql` para definir explicitamente o schema completo do PostgreSQL, incluindo tabelas `users`, `documents`, `document_chunks`, `chat_sessions` e `chat_messages`.
+- Configura a coluna `embedding` na tabela `document_chunks` como `VECTOR(1536)` com índice HNSW para busca por similaridade vetorial.
+- Altera `spring.jpa.hibernate.ddl-auto` de `update` para `validate` em `application.properties`, delegando a criação/evolução do schema aos scripts SQL.
+- Adiciona a dependência `hypersistence-utils-hibernate-63` ao `pom.xml` para facilitar o mapeamento de tipos PostgreSQL, como `VECTOR` e `JSONB`.
+- Atualiza a entidade `DocumentChunk` para usar `@Type(FloatArrayType.class)` e `columnDefinition = "vector(1536)"`, garantindo o mapeamento correto do tipo `float[]` para `VECTOR` do PGVector.
+- Substitui a anotação `@Data` por `@Getter` e `@Setter` na entidade `DocumentChunk` para evitar problemas comuns de JPA.
