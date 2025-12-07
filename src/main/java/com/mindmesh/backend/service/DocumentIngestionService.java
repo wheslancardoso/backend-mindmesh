@@ -4,7 +4,6 @@ import com.mindmesh.backend.model.Document;
 import com.mindmesh.backend.model.DocumentChunk;
 import com.mindmesh.backend.repository.DocumentChunkRepository;
 import com.mindmesh.backend.repository.DocumentRepository;
-import com.mindmesh.backend.service.metadata.MetadataEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,6 +13,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,7 +28,7 @@ public class DocumentIngestionService {
 
     private final TextExtractorService textExtractorService;
     private final ChunkingService chunkingService;
-    private final MetadataEnricher metadataEnricher;
+    private final MetadataEnrichmentService metadataEnrichmentService;
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
 
@@ -81,10 +81,10 @@ public class DocumentIngestionService {
 
             log.info("[documentId={}] Texto extraído: {} caracteres", documentId, text.length());
 
-            // 6. Enriquecer documento com metadados AI
-            log.info("[documentId={}] Enriquecendo metadados...", documentId);
-            java.util.Map<String, Object> documentMetadata = metadataEnricher.enrich(text);
-            log.info("[documentId={}] Metadados gerados: {}", documentId, documentMetadata.keySet());
+            // 6. Enriquecer documento com metadados AI (UMA chamada OpenAI)
+            log.info("[documentId={}] Enriquecendo metadados V2...", documentId);
+            Map<String, Object> documentMetadata = metadataEnrichmentService.enrichAsMap(filename, text);
+            log.info("[documentId={}] Metadados V2 gerados: {}", documentId, documentMetadata.keySet());
 
             // 7. Gerar chunks com embeddings e metadados
             log.info("[documentId={}] Gerando chunks e embeddings...", documentId);

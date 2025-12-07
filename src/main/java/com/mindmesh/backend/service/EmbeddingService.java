@@ -1,9 +1,7 @@
 package com.mindmesh.backend.service;
 
 import dev.langchain4j.data.embedding.Embedding;
-import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -24,17 +22,14 @@ import java.util.function.Supplier;
  * Serviço responsável por transformar texto em embeddings vetoriais.
  * Suporta modo real (OpenAI) e modo mock (quando OPENAI_API_KEY não está
  * definida).
- * Também fornece métodos de IA para enriquecimento de metadados.
  */
 @Slf4j
 @Service
 public class EmbeddingService {
 
     private static final String MODEL_NAME = "text-embedding-3-small";
-    private static final String CHAT_MODEL_NAME = "gpt-4o-mini";
     private static final int VECTOR_SIZE = 1536;
     private static final int MAX_CHARACTERS = 32_000;
-    private static final int MAX_CHAT_INPUT_CHARS = 4000;
 
     private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final Duration TIMEOUT_DURATION = Duration.ofSeconds(30);
@@ -42,7 +37,6 @@ public class EmbeddingService {
     private static final double BACKOFF_MULTIPLIER = 2.0;
 
     private final EmbeddingModel embeddingModel;
-    private final ChatLanguageModel chatModel;
     private final Retry retry;
     private final TimeLimiter timeLimiter;
     private final CircuitBreaker circuitBreaker;
@@ -56,7 +50,6 @@ public class EmbeddingService {
             log.warn("⚠️  OPENAI_API_KEY não definida - EmbeddingService em MODO MOCK");
             this.mockMode = true;
             this.embeddingModel = null;
-            this.chatModel = null;
             this.retry = null;
             this.timeLimiter = null;
             this.circuitBreaker = null;
@@ -70,13 +63,6 @@ public class EmbeddingService {
                 .apiKey(apiKey)
                 .modelName(MODEL_NAME)
                 .timeout(Duration.ofSeconds(60))
-                .build();
-
-        this.chatModel = OpenAiChatModel.builder()
-                .apiKey(apiKey)
-                .modelName(CHAT_MODEL_NAME)
-                .temperature(0.3)
-                .timeout(Duration.ofSeconds(30))
                 .build();
 
         RetryConfig retryConfig = RetryConfig.custom()
@@ -117,8 +103,8 @@ public class EmbeddingService {
 
         this.executor = Executors.newCachedThreadPool();
 
-        log.info("EmbeddingService REAL inicializado: {} + {} | Retry: {} | Timeout: {}s",
-                MODEL_NAME, CHAT_MODEL_NAME, MAX_RETRY_ATTEMPTS, TIMEOUT_DURATION.getSeconds());
+        log.info("EmbeddingService REAL inicializado: {} | Retry: {} | Timeout: {}s",
+                MODEL_NAME, MAX_RETRY_ATTEMPTS, TIMEOUT_DURATION.getSeconds());
     }
 
     public boolean isMockMode() {
@@ -210,108 +196,5 @@ public class EmbeddingService {
         }
 
         return truncated.trim();
-    }
-
-    // ==================== AI HELPER METHODS ====================
-
-    /**
-     * Gera um resumo curto do texto usando IA.
-     * Nunca lança exceções - retorna string vazia em caso de falha.
-     */
-    public String summarize(String text) {
-        if (mockMode) {
-            log.debug("summarize() em modo mock");
-            return "[MOCK] Resumo do documento gerado automaticamente.";
-        }
-
-        try {
-            String input = truncateForChat(text);
-            String prompt = "Gere um resumo curto (máximo 3 frases) do seguinte texto:\n\n" + input;
-            String result = chatModel.generate(prompt);
-            log.debug("summarize() concluído: {} chars", result.length());
-            return result.trim();
-        } catch (Exception e) {
-            log.error("Erro ao gerar resumo: {}", e.getMessage());
-            return "";
-        }
-    }
-
-    /**
-     * Extrai palavras-chave do texto usando IA.
-     * Retorna string CSV (5-10 palavras).
-     */
-    public String extractKeywords(String text) {
-        if (mockMode) {
-            log.debug("extractKeywords() em modo mock");
-            return "documento, análise, texto, conteúdo, informação";
-        }
-
-        try {
-            String input = truncateForChat(text);
-            String prompt = "Liste de 5 a 10 palavras-chave do texto abaixo, separadas por vírgula. " +
-                    "Retorne apenas as palavras, sem numeração ou explicação:\n\n" + input;
-            String result = chatModel.generate(prompt);
-            log.debug("extractKeywords() concluído: {}", result);
-            return result.trim();
-        } catch (Exception e) {
-            log.error("Erro ao extrair keywords: {}", e.getMessage());
-            return "";
-        }
-    }
-
-    /**
-     * Extrai tópicos principais do texto usando IA.
-     * Retorna string CSV.
-     */
-    public String extractTopics(String text) {
-        if (mockMode) {
-            log.debug("extractTopics() em modo mock");
-            return "Análise de Documentos, Processamento de Texto";
-        }
-
-        try {
-            String input = truncateForChat(text);
-            String prompt = "Liste os tópicos principais deste documento, separados por vírgula. " +
-                    "Retorne apenas os tópicos, sem numeração ou explicação:\n\n" + input;
-            String result = chatModel.generate(prompt);
-            log.debug("extractTopics() concluído: {}", result);
-            return result.trim();
-        } catch (Exception e) {
-            log.error("Erro ao extrair tópicos: {}", e.getMessage());
-            return "";
-        }
-    }
-
-    /**
-     * Classifica o tipo do documento usando IA.
-     */
-    public String classifyDocument(String text) {
-        if (mockMode) {
-            log.debug("classifyDocument() em modo mock");
-            return "documento genérico";
-        }
-
-        try {
-            String input = truncateForChat(text);
-            String prompt = "Classifique o tipo deste documento. Responda com apenas uma categoria entre: " +
-                    "artigo, relatório, email, documentação técnica, tutorial, nota pessoal, ata de reunião, " +
-                    "contrato, manual, apresentação, ou outro.\n\n" + input;
-            String result = chatModel.generate(prompt);
-            log.debug("classifyDocument() concluído: {}", result);
-            return result.trim().toLowerCase();
-        } catch (Exception e) {
-            log.error("Erro ao classificar documento: {}", e.getMessage());
-            return "desconhecido";
-        }
-    }
-
-    /**
-     * Trunca texto para chamadas de chat (limite menor que embeddings).
-     */
-    private String truncateForChat(String text) {
-        if (text == null || text.length() <= MAX_CHAT_INPUT_CHARS) {
-            return text;
-        }
-        return text.substring(0, MAX_CHAT_INPUT_CHARS);
     }
 }
