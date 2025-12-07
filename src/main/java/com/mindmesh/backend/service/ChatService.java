@@ -29,12 +29,19 @@ import java.util.stream.Collectors;
 public class ChatService {
 
     private static final String SYSTEM_PROMPT = """
-            Você é um assistente inteligente do MindMesh.
-            Responda APENAS com base no contexto fornecido abaixo.
-            Se não houver informação suficiente no contexto para responder, diga claramente:
-            "Não encontrei informação suficiente nos documentos para responder essa pergunta."
+            Você é um assistente especializado em análise de documentos usando RAG (Retrieval-Augmented Generation).
 
-            Seja preciso, objetivo e cite as fontes quando possível.
+            REGRAS IMPORTANTES:
+            1. Use SEMPRE tanto os METADADOS quanto os CONTEÚDOS dos chunks para responder.
+            2. Se a resposta estiver claramente presente nos metadados (document_type, language, keywords, topics, summary),
+               utilize essas informações diretamente.
+            3. Cite as fontes quando possível (ex: "De acordo com o documento...").
+            4. Se perguntarem sobre o tipo, idioma, palavras-chave ou resumo do documento,
+               responda usando os metadados disponíveis.
+            5. Se realmente não houver informação suficiente nos metadados nem nos chunks, responda:
+               "Não encontrei informação suficiente nos documentos para responder essa pergunta."
+
+            Seja preciso, objetivo e útil.
             """;
 
     private static final int MAX_SNIPPET_LENGTH = 300;
@@ -203,7 +210,7 @@ public class ChatService {
 
         for (int i = 0; i < chunks.size(); i++) {
             ChunkSearchResult chunk = chunks.get(i);
-            context.append("Fonte ").append(i + 1).append(":\n");
+            context.append("=== Documento/Chunk ").append(i + 1).append(" ===\n");
 
             // Incluir metadados enriquecidos se disponíveis
             String metadata = chunk.getMetadata();
@@ -212,11 +219,16 @@ public class ChatService {
                     com.fasterxml.jackson.databind.JsonNode metaNode = new com.fasterxml.jackson.databind.ObjectMapper()
                             .readTree(metadata);
 
+                    context.append("METADADOS:\n");
+
                     if (metaNode.has("document_type") && !metaNode.get("document_type").asText().isBlank()) {
-                        context.append("[Tipo: ").append(metaNode.get("document_type").asText()).append("]\n");
+                        context.append("  Tipo: ").append(metaNode.get("document_type").asText()).append("\n");
+                    }
+                    if (metaNode.has("language") && !metaNode.get("language").asText().isBlank()) {
+                        context.append("  Idioma: ").append(metaNode.get("language").asText()).append("\n");
                     }
                     if (metaNode.has("summary") && !metaNode.get("summary").asText().isBlank()) {
-                        context.append("[Resumo: ").append(metaNode.get("summary").asText()).append("]\n");
+                        context.append("  Resumo: ").append(metaNode.get("summary").asText()).append("\n");
                     }
                     if (metaNode.has("keywords") && metaNode.get("keywords").isArray()) {
                         StringBuilder kw = new StringBuilder();
@@ -226,7 +238,7 @@ public class ChatService {
                             kw.append(k.asText());
                         });
                         if (kw.length() > 0) {
-                            context.append("[Palavras-chave: ").append(kw).append("]\n");
+                            context.append("  Palavras-chave: ").append(kw).append("\n");
                         }
                     }
                     if (metaNode.has("topics") && metaNode.get("topics").isArray()) {
@@ -237,8 +249,11 @@ public class ChatService {
                             tp.append(t.asText());
                         });
                         if (tp.length() > 0) {
-                            context.append("[Tópicos: ").append(tp).append("]\n");
+                            context.append("  Tópicos: ").append(tp).append("\n");
                         }
+                    }
+                    if (metaNode.has("confidence")) {
+                        context.append("  Confiança: ").append(metaNode.get("confidence").asDouble()).append("\n");
                     }
                     context.append("\n");
                 } catch (Exception e) {
@@ -246,6 +261,7 @@ public class ChatService {
                 }
             }
 
+            context.append("CONTEÚDO:\n");
             context.append(chunk.getContent());
             context.append("\n\n");
         }

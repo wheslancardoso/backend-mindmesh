@@ -50,9 +50,9 @@ public class DocumentController {
     })
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentUploadResponseDto> uploadDocument(
-            @Parameter(description = "ID do usuário", required = true) @RequestParam("userId") UUID userId,
+            @Parameter(description = "Arquivo a ser processado", required = true) @RequestParam("file") MultipartFile file,
 
-            @Parameter(description = "Arquivo a ser processado", required = true) @RequestParam("file") MultipartFile file)
+            @Parameter(description = "ID do usuário", required = true) @RequestParam("userId") UUID userId)
             throws IOException {
 
         if (file == null || file.isEmpty()) {

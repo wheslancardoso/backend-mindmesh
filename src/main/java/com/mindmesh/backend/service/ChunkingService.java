@@ -55,11 +55,14 @@ public class ChunkingService {
         List<String> rawChunks = splitIntoChunks(normalizedContent);
         List<DocumentChunk> documentChunks = new ArrayList<>();
 
+        int totalChunks = rawChunks.size();
+
         for (int i = 0; i < rawChunks.size(); i++) {
             String chunkText = rawChunks.get(i);
+            int tokenCount = estimateTokenCount(chunkText);
 
             float[] embedding = embeddingService.embed(chunkText);
-            JsonNode metadata = createMetadata(i, documentMetadata);
+            JsonNode metadata = createEnrichedMetadata(i, totalChunks, tokenCount, documentMetadata);
 
             DocumentChunk chunk = DocumentChunk.builder()
                     .id(UUID.randomUUID())
@@ -69,7 +72,7 @@ public class ChunkingService {
                     .embedding(embedding)
                     .metadata(metadata)
                     .chunkIndex(i)
-                    .tokenCount(estimateTokenCount(chunkText))
+                    .tokenCount(tokenCount)
                     .build();
 
             documentChunks.add(chunk);
@@ -176,9 +179,14 @@ public class ChunkingService {
         return targetPosition;
     }
 
-    private JsonNode createMetadata(int chunkIndex, Map<String, Object> documentMetadata) {
+    private JsonNode createEnrichedMetadata(int chunkIndex, int totalChunks, int tokenCount,
+            Map<String, Object> documentMetadata) {
         ObjectNode metadata = objectMapper.createObjectNode();
+
+        // Chunk-specific metadata
         metadata.put("chunk_index", chunkIndex);
+        metadata.put("chunk_token_count", tokenCount);
+        metadata.put("total_chunks", totalChunks);
 
         // Merge document-level metadata if provided
         if (documentMetadata != null) {
