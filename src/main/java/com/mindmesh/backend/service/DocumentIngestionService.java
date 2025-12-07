@@ -4,6 +4,7 @@ import com.mindmesh.backend.model.Document;
 import com.mindmesh.backend.model.DocumentChunk;
 import com.mindmesh.backend.repository.DocumentChunkRepository;
 import com.mindmesh.backend.repository.DocumentRepository;
+import com.mindmesh.backend.service.metadata.MetadataEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class DocumentIngestionService {
 
     private final TextExtractorService textExtractorService;
     private final ChunkingService chunkingService;
+    private final MetadataEnricher metadataEnricher;
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
 
@@ -79,9 +81,14 @@ public class DocumentIngestionService {
 
             log.info("[documentId={}] Texto extraído: {} caracteres", documentId, text.length());
 
-            // 6. Gerar chunks com embeddings
+            // 6. Enriquecer documento com metadados AI
+            log.info("[documentId={}] Enriquecendo metadados...", documentId);
+            java.util.Map<String, Object> documentMetadata = metadataEnricher.enrich(text);
+            log.info("[documentId={}] Metadados gerados: {}", documentId, documentMetadata.keySet());
+
+            // 7. Gerar chunks com embeddings e metadados
             log.info("[documentId={}] Gerando chunks e embeddings...", documentId);
-            List<DocumentChunk> chunks = chunkingService.chunkAndEmbed(document, text);
+            List<DocumentChunk> chunks = chunkingService.chunkAndEmbed(document, text, documentMetadata);
 
             log.info("[documentId={}] Gerados {} chunks", documentId, chunks.size());
 

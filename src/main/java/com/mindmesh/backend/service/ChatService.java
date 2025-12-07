@@ -204,6 +204,48 @@ public class ChatService {
         for (int i = 0; i < chunks.size(); i++) {
             ChunkSearchResult chunk = chunks.get(i);
             context.append("Fonte ").append(i + 1).append(":\n");
+
+            // Incluir metadados enriquecidos se disponíveis
+            String metadata = chunk.getMetadata();
+            if (metadata != null && !metadata.isBlank() && !metadata.equals("null")) {
+                try {
+                    com.fasterxml.jackson.databind.JsonNode metaNode = new com.fasterxml.jackson.databind.ObjectMapper()
+                            .readTree(metadata);
+
+                    if (metaNode.has("document_type") && !metaNode.get("document_type").asText().isBlank()) {
+                        context.append("[Tipo: ").append(metaNode.get("document_type").asText()).append("]\n");
+                    }
+                    if (metaNode.has("summary") && !metaNode.get("summary").asText().isBlank()) {
+                        context.append("[Resumo: ").append(metaNode.get("summary").asText()).append("]\n");
+                    }
+                    if (metaNode.has("keywords") && metaNode.get("keywords").isArray()) {
+                        StringBuilder kw = new StringBuilder();
+                        metaNode.get("keywords").forEach(k -> {
+                            if (kw.length() > 0)
+                                kw.append(", ");
+                            kw.append(k.asText());
+                        });
+                        if (kw.length() > 0) {
+                            context.append("[Palavras-chave: ").append(kw).append("]\n");
+                        }
+                    }
+                    if (metaNode.has("topics") && metaNode.get("topics").isArray()) {
+                        StringBuilder tp = new StringBuilder();
+                        metaNode.get("topics").forEach(t -> {
+                            if (tp.length() > 0)
+                                tp.append(", ");
+                            tp.append(t.asText());
+                        });
+                        if (tp.length() > 0) {
+                            context.append("[Tópicos: ").append(tp).append("]\n");
+                        }
+                    }
+                    context.append("\n");
+                } catch (Exception e) {
+                    log.debug("Erro ao parsear metadata: {}", e.getMessage());
+                }
+            }
+
             context.append(chunk.getContent());
             context.append("\n\n");
         }

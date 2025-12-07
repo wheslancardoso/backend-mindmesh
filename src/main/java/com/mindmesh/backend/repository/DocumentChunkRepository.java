@@ -3,6 +3,9 @@ package com.mindmesh.backend.repository;
 import com.mindmesh.backend.dto.ChunkSearchResult;
 import com.mindmesh.backend.model.DocumentChunk;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -29,8 +32,11 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
 
   /**
    * Remove todos os chunks de um documento.
+   * Usa query nativa para evitar carregar entidades com tipo vector.
    */
-  void deleteByDocumentId(UUID documentId);
+  @Modifying
+  @Query(value = "DELETE FROM document_chunks WHERE document_id = :documentId", nativeQuery = true)
+  void deleteByDocumentId(@Param("documentId") UUID documentId);
 
   /**
    * Conta chunks de um documento.

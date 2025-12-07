@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -37,6 +38,14 @@ public class ChunkingService {
      * Retorna lista de DocumentChunk associados ao Document.
      */
     public List<DocumentChunk> chunkAndEmbed(Document document, String content) {
+        return chunkAndEmbed(document, content, null);
+    }
+
+    /**
+     * Divide o conteúdo em chunks e gera embeddings com metadados do documento.
+     * Retorna lista de DocumentChunk associados ao Document.
+     */
+    public List<DocumentChunk> chunkAndEmbed(Document document, String content, Map<String, Object> documentMetadata) {
         if (content == null || content.isBlank()) {
             log.warn("Conteúdo vazio para chunking");
             return List.of();
@@ -50,7 +59,7 @@ public class ChunkingService {
             String chunkText = rawChunks.get(i);
 
             float[] embedding = embeddingService.embed(chunkText);
-            JsonNode metadata = createMetadata(i);
+            JsonNode metadata = createMetadata(i, documentMetadata);
 
             DocumentChunk chunk = DocumentChunk.builder()
                     .id(UUID.randomUUID())
@@ -167,9 +176,36 @@ public class ChunkingService {
         return targetPosition;
     }
 
-    private JsonNode createMetadata(int chunkIndex) {
+    private JsonNode createMetadata(int chunkIndex, Map<String, Object> documentMetadata) {
         ObjectNode metadata = objectMapper.createObjectNode();
         metadata.put("chunk_index", chunkIndex);
+
+        // Merge document-level metadata if provided
+        if (documentMetadata != null) {
+            for (Map.Entry<String, Object> entry : documentMetadata.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+
+                if (value instanceof String) {
+                    metadata.put(key, (String) value);
+                } else if (value instanceof Integer) {
+                    metadata.put(key, (Integer) value);
+                } else if (value instanceof Long) {
+                    metadata.put(key, (Long) value);
+                } else if (value instanceof Double) {
+                    metadata.put(key, (Double) value);
+                } else if (value instanceof Boolean) {
+                    metadata.put(key, (Boolean) value);
+                } else if (value instanceof java.util.List) {
+                    metadata.set(key, objectMapper.valueToTree(value));
+                } else if (value instanceof java.util.Map) {
+                    metadata.set(key, objectMapper.valueToTree(value));
+                } else if (value != null) {
+                    metadata.put(key, value.toString());
+                }
+            }
+        }
+
         return metadata;
     }
 
