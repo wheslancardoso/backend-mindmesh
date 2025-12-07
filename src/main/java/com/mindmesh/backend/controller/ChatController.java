@@ -18,88 +18,56 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 /**
- * Controller REST para o fluxo de chat RAG.
+ * Controller REST para chat RAG com sessões.
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // TODO: Configurar CORS adequadamente em produção
-@Tag(name = "Chat", description = """
-        Chat com RAG (Retrieval-Augmented Generation).
-
-        Permite fazer perguntas usando linguagem natural e receber respostas
-        contextualizadas com base nos documentos do usuário.
-        Utiliza busca semântica vetorial + LLM (OpenAI GPT).
-        """)
+@CrossOrigin(origins = "*")
+@Tag(name = "Chat", description = "Chat com RAG usando busca semântica + LLM")
 public class ChatController {
 
     private final ChatService chatService;
 
-    @Operation(summary = "Enviar pergunta ao chat", description = """
-            Processa uma pergunta do usuário usando o fluxo RAG completo:
-
-            1. **Embedding**: Converte a pergunta em vetor usando OpenAI
-            2. **Busca vetorial**: Encontra os chunks mais relevantes no PGVector
-            3. **Contextualização**: Monta o prompt com os chunks recuperados
-            4. **Geração**: Envia ao LLM (GPT) para gerar a resposta final
-
-            A resposta inclui tanto o texto gerado quanto os chunks usados como fonte.
+    @Operation(summary = "Enviar mensagem ao chat", description = """
+            Processa uma mensagem usando RAG:
+            1. Cria ou reutiliza sessão
+            2. Gera embedding da pergunta
+            3. Busca chunks similares no PGVector
+            4. Gera resposta via LLM
+            5. Persiste mensagens na sessão
             """)
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Resposta gerada com sucesso", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ChatResponseDto.class), examples = @ExampleObject(value = """
-                    {
-                        "answer": "De acordo com os documentos, o MindMesh é uma plataforma de busca semântica...",
-                        "chunks": [
-                            {
-                                "id": "550e8400-e29b-41d4-a716-446655440001",
-                                "documentId": "550e8400-e29b-41d4-a716-446655440000",
-                                "contentSnippet": "MindMesh é uma plataforma de RAG...",
-                                "chunkIndex": 0,
-                                "tokenCount": 156
-                            }
-                        ]
-                    }
-                    """))),
-            @ApiResponse(responseCode = "400", description = "Requisição inválida (pergunta vazia ou userId ausente)", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
-                    {
-                        "error": "Requisição inválida",
-                        "message": "A pergunta não pode estar vazia"
-                    }
-                    """))),
-            @ApiResponse(responseCode = "500", description = "Erro interno ao processar pergunta", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
-                    {
-                        "error": "Erro interno",
-                        "message": "Falha ao processar a requisição. Tente novamente."
-                    }
-                    """)))
+            @ApiResponse(responseCode = "200", description = "Resposta gerada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ChatResponseDto.class))),
+            @ApiResponse(responseCode = "400", description = "Requisição inválida"),
+            @ApiResponse(responseCode = "500", description = "Erro interno")
     })
     @PostMapping
     public ResponseEntity<ChatResponseDto> chat(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Dados da requisição de chat", required = true, content = @Content(mediaType = "application/json", schema = @Schema(implementation = ChatRequestDto.class), examples = @ExampleObject(value = """
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Dados da requisição", required = true, content = @Content(mediaType = "application/json", schema = @Schema(implementation = ChatRequestDto.class), examples = @ExampleObject(value = """
                     {
                         "userId": "550e8400-e29b-41d4-a716-446655440000",
-                        "question": "O que é o MindMesh?",
-                        "metadataFilters": null,
+                        "message": "O que é o MindMesh?",
+                        "sessionId": null,
                         "limit": 5
                     }
                     """))) @RequestBody ChatRequestDto request) {
 
-        log.info("Recebida requisição de chat - userId: {}, pergunta: '{}'",
+        log.info("Chat - userId: {}, sessionId: {}, message: '{}'",
                 request.getUserId(),
-                truncateForLog(request.getQuestion()));
+                request.getSessionId(),
+                truncateForLog(request.getMessage()));
 
         ChatResponseDto response = chatService.chat(request);
 
-        log.info("Resposta gerada com {} chunks de contexto",
+        log.info("Resposta gerada - sessionId: {}, chunks: {}",
+                response.getSessionId(),
                 response.getChunks() != null ? response.getChunks().size() : 0);
 
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Handler de exceções para IllegalArgumentException (validação).
-     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleValidationError(IllegalArgumentException e) {
         log.warn("Erro de validação: {}", e.getMessage());
@@ -108,20 +76,14 @@ public class ChatController {
                 "message", e.getMessage()));
     }
 
-    /**
-     * Handler de exceções genéricas.
-     */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeError(RuntimeException e) {
         log.error("Erro ao processar chat: {}", e.getMessage(), e);
         return ResponseEntity.internalServerError().body(Map.of(
                 "error", "Erro interno",
-                "message", "Falha ao processar a requisição. Tente novamente."));
+                "message", "Falha ao processar a requisição"));
     }
 
-    /**
-     * Trunca texto para logging.
-     */
     private String truncateForLog(String text) {
         if (text == null)
             return "";

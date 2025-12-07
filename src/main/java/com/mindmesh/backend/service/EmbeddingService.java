@@ -14,64 +14,57 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.List;
+import java.util.Random;
 import java.util.concurrent.*;
 import java.util.function.Supplier;
 
 /**
  * Serviço responsável por transformar texto em embeddings vetoriais.
- * Utiliza a API da OpenAI com modelo text-embedding-3-small.
- * 
- * Implementa resiliência com:
- * - Retry: 3 tentativas com backoff exponencial (300ms → 1.5s → 3s)
- * - Timeout: 6 segundos por chamada
- * - Circuit Breaker: Desabilitado por padrão (pronto para ativar)
+ * Suporta modo real (OpenAI) e modo mock (quando OPENAI_API_KEY não está
+ * definida).
  */
 @Slf4j
 @Service
 public class EmbeddingService {
 
     private static final String MODEL_NAME = "text-embedding-3-small";
-
-    /**
-     * Limite aproximado de caracteres para 8k tokens.
-     * Estimativa: 1 token ≈ 4 caracteres em inglês, ~3 em português.
-     * Usando 32k caracteres como buffer seguro para ~8k tokens.
-     */
+    private static final int VECTOR_SIZE = 1536;
     private static final int MAX_CHARACTERS = 32_000;
 
-    // Configurações de resiliência
     private static final int MAX_RETRY_ATTEMPTS = 3;
-    private static final Duration TIMEOUT_DURATION = Duration.ofSeconds(6);
-    private static final Duration INITIAL_BACKOFF = Duration.ofMillis(300);
-    private static final double BACKOFF_MULTIPLIER = 2.5;
+    private static final Duration TIMEOUT_DURATION = Duration.ofSeconds(30);
+    private static final Duration INITIAL_BACKOFF = Duration.ofMillis(500);
+    private static final double BACKOFF_MULTIPLIER = 2.0;
 
     private final EmbeddingModel embeddingModel;
     private final Retry retry;
     private final TimeLimiter timeLimiter;
     private final CircuitBreaker circuitBreaker;
     private final ExecutorService executor;
+    private final boolean mockMode;
 
-    /**
-     * Construtor que obtém a API key via variável de ambiente.
-     * Lança exceção se OPENAI_API_KEY não estiver definida.
-     */
     public EmbeddingService() {
         String apiKey = System.getenv("OPENAI_API_KEY");
 
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalArgumentException(
-                    "A variável de ambiente OPENAI_API_KEY não está definida. " +
-                            "Defina-a antes de iniciar a aplicação: export OPENAI_API_KEY=\"sua-chave\"");
+            log.warn("⚠️  OPENAI_API_KEY não definida - EmbeddingService em MODO MOCK");
+            this.mockMode = true;
+            this.embeddingModel = null;
+            this.retry = null;
+            this.timeLimiter = null;
+            this.circuitBreaker = null;
+            this.executor = null;
+            return;
         }
 
-        // Configurar modelo OpenAI
+        this.mockMode = false;
+
         this.embeddingModel = OpenAiEmbeddingModel.builder()
                 .apiKey(apiKey)
                 .modelName(MODEL_NAME)
+                .timeout(Duration.ofSeconds(60))
                 .build();
 
-        // Configurar Retry com backoff exponencial
         RetryConfig retryConfig = RetryConfig.custom()
                 .maxAttempts(MAX_RETRY_ATTEMPTS)
                 .intervalFunction(
@@ -80,27 +73,24 @@ public class EmbeddingService {
                 .build();
         this.retry = Retry.of("embeddingRetry", retryConfig);
 
-        // Registrar listeners para logging
         retry.getEventPublisher()
                 .onRetry(event -> log.warn(
-                        "Tentativa {} de {} falhou. Aguardando {}ms antes de retry. Erro: {}",
+                        "Tentativa {} de {} falhou. Aguardando {}ms. Erro: {}",
                         event.getNumberOfRetryAttempts(),
                         MAX_RETRY_ATTEMPTS,
                         event.getWaitInterval().toMillis(),
                         event.getLastThrowable().getMessage()))
                 .onError(event -> log.error(
-                        "Todas as {} tentativas falharam. Último erro: {}",
+                        "Todas as {} tentativas falharam. Erro: {}",
                         event.getNumberOfRetryAttempts(),
                         event.getLastThrowable().getMessage()));
 
-        // Configurar Timeout
         TimeLimiterConfig timeLimiterConfig = TimeLimiterConfig.custom()
                 .timeoutDuration(TIMEOUT_DURATION)
                 .cancelRunningFuture(true)
                 .build();
         this.timeLimiter = TimeLimiter.of("embeddingTimeLimiter", timeLimiterConfig);
 
-        // Configurar Circuit Breaker (DESABILITADO - pronto para ativar)
         CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.custom()
                 .failureRateThreshold(50)
                 .waitDurationInOpenState(Duration.ofSeconds(30))
@@ -111,41 +101,49 @@ public class EmbeddingService {
         this.circuitBreaker = CircuitBreaker.of("embeddingCircuitBreaker", circuitBreakerConfig);
         circuitBreaker.transitionToDisabledState();
 
-        // Executor para operações assíncronas (timeout)
         this.executor = Executors.newCachedThreadPool();
 
-        log.info("EmbeddingService inicializado com modelo: {} | Retry: {} tentativas | Timeout: {}s",
+        log.info("EmbeddingService REAL inicializado: {} | Retry: {} | Timeout: {}s",
                 MODEL_NAME, MAX_RETRY_ATTEMPTS, TIMEOUT_DURATION.getSeconds());
     }
 
-    /**
-     * Converte texto em um vetor de embeddings.
-     * 
-     * Resiliência aplicada:
-     * - Retry: até 3 tentativas com backoff exponencial
-     * - Timeout: 6 segundos máximo por tentativa
-     *
-     * @param text Texto a ser convertido
-     * @return float[] com 1536 dimensões, ou array vazio se texto for nulo/vazio
-     * @throws RuntimeException se todas as tentativas falharem
-     */
+    public boolean isMockMode() {
+        return mockMode;
+    }
+
     public float[] embed(String text) {
-        // Validação: texto nulo ou vazio retorna embedding vazio
         if (text == null || text.isBlank()) {
-            log.warn("Texto nulo ou vazio recebido para embedding, retornando array vazio");
+            log.warn("Texto nulo ou vazio, retornando embedding vazio");
             return new float[0];
         }
 
-        // Truncar inteligentemente se ultrapassar limite de tokens (~8k)
+        if (mockMode) {
+            return embedMock(text);
+        }
+
+        return embedReal(text);
+    }
+
+    private float[] embedMock(String text) {
+        float[] v = new float[VECTOR_SIZE];
+        int seed = text.hashCode();
+        Random r = new Random(seed);
+
+        for (int i = 0; i < VECTOR_SIZE; i++) {
+            v[i] = (r.nextFloat() * 2f) - 1f;
+        }
+
+        log.debug("Mock embedding gerado: {} chars, seed: {}", text.length(), seed);
+        return v;
+    }
+
+    private float[] embedReal(String text) {
         String processedText = truncateIfNeeded(text);
 
-        log.info("Gerando embedding para texto com {} caracteres (original: {})",
-                processedText.length(), text.length());
+        log.info("Gerando embedding real: {} chars", processedText.length());
 
-        // Supplier com a lógica de chamada à API
         Supplier<float[]> embeddingSupplier = () -> callOpenAiApi(processedText);
 
-        // Aplicar decoradores: Retry → TimeLimiter
         Supplier<float[]> decoratedSupplier = Retry.decorateSupplier(retry, () -> {
             try {
                 CompletableFuture<float[]> future = CompletableFuture.supplyAsync(embeddingSupplier, executor);
@@ -157,68 +155,34 @@ public class EmbeddingService {
 
         try {
             float[] result = decoratedSupplier.get();
-            log.info("Embedding gerado com sucesso: {} dimensões", result.length);
+            log.info("Embedding gerado: {} dimensões", result.length);
             return result;
 
         } catch (Exception e) {
-            String errorMessage = String.format(
-                    "Falha ao gerar embedding após %d tentativas. Texto: %d chars. Erro: %s",
-                    MAX_RETRY_ATTEMPTS,
-                    processedText.length(),
-                    extractRootCause(e).getMessage());
-
-            log.error(errorMessage, e);
-            throw new RuntimeException(errorMessage, extractRootCause(e));
+            log.error("Falha ao gerar embedding: {}", e.getMessage(), e);
+            throw new RuntimeException("Falha ao gerar embedding: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * Chamada real à API da OpenAI (sem decoradores).
-     */
     private float[] callOpenAiApi(String text) {
-        if (embeddingModel == null) {
-            throw new IllegalStateException("Real embedding model is null. Mock mode should be active.");
-        }
         Response<Embedding> response = embeddingModel.embed(text);
-        Embedding embedding = response.content();
-        return embedding.vector();
+        return response.content().vector();
     }
 
-    /**
-     * Extrai a causa raiz de uma exceção encadeada.
-     */
-    private Throwable extractRootCause(Throwable throwable) {
-        Throwable cause = throwable;
-        while (cause.getCause() != null && cause.getCause() != cause) {
-            cause = cause.getCause();
-        }
-        return cause;
-    }
-
-    /**
-     * Trunca o texto inteligentemente se ultrapassar o limite de tokens.
-     * Tenta cortar em limites de sentença ou parágrafo para manter contexto.
-     *
-     * @param text Texto original
-     * @return Texto truncado ou original se dentro do limite
-     */
     private String truncateIfNeeded(String text) {
         if (text.length() <= MAX_CHARACTERS) {
             return text;
         }
 
-        log.warn("Texto excede limite de {} caracteres ({}), truncando inteligentemente",
-                MAX_CHARACTERS, text.length());
+        log.warn("Texto excede {} chars ({}), truncando", MAX_CHARACTERS, text.length());
 
         String truncated = text.substring(0, MAX_CHARACTERS);
 
-        // Tentar cortar no último parágrafo completo
         int lastParagraph = truncated.lastIndexOf("\n\n");
         if (lastParagraph > MAX_CHARACTERS * 0.8) {
             return truncated.substring(0, lastParagraph).trim();
         }
 
-        // Tentar cortar na última sentença completa
         int lastSentence = Math.max(
                 truncated.lastIndexOf(". "),
                 Math.max(truncated.lastIndexOf("! "), truncated.lastIndexOf("? ")));
@@ -226,49 +190,11 @@ public class EmbeddingService {
             return truncated.substring(0, lastSentence + 1).trim();
         }
 
-        // Fallback: cortar no último espaço
         int lastSpace = truncated.lastIndexOf(" ");
         if (lastSpace > MAX_CHARACTERS * 0.9) {
             return truncated.substring(0, lastSpace).trim();
         }
 
         return truncated.trim();
-    }
-
-    /**
-     * Converte uma lista de Double para array de float.
-     * Útil para compatibilidade com APIs que retornam List<Double>.
-     *
-     * @param list Lista de valores Double
-     * @return Array de float correspondente
-     */
-    private float[] toFloatArray(List<Double> list) {
-        if (list == null || list.isEmpty()) {
-            return new float[0];
-        }
-
-        float[] result = new float[list.size()];
-        for (int i = 0; i < list.size(); i++) {
-            Double value = list.get(i);
-            result[i] = value != null ? value.floatValue() : 0.0f;
-        }
-        return result;
-    }
-
-    /**
-     * Ativa o Circuit Breaker para proteção contra falhas em cascata.
-     * Use quando a API estiver instável.
-     */
-    public void enableCircuitBreaker() {
-        circuitBreaker.transitionToClosedState();
-        log.info("Circuit Breaker ATIVADO para EmbeddingService");
-    }
-
-    /**
-     * Desativa o Circuit Breaker.
-     */
-    public void disableCircuitBreaker() {
-        circuitBreaker.transitionToDisabledState();
-        log.info("Circuit Breaker DESATIVADO para EmbeddingService");
     }
 }

@@ -10,17 +10,16 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Entidade que representa um documento enviado pelo usuário.
- * Alinhado com schema final: sem contentType, sizeBytes, text.
+ * Representa uma sessão de chat do usuário.
  */
 @Entity
-@Table(name = "documents")
+@Table(name = "chat_sessions")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Document {
+public class ChatSession {
 
     @Id
     @Column(name = "id", updatable = false, nullable = false)
@@ -29,15 +28,8 @@ public class Document {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "filename", nullable = false)
-    private String filename;
-
-    @Column(name = "file_hash", nullable = false, length = 64)
-    private String fileHash;
-
-    @Column(name = "status", nullable = false)
-    @Builder.Default
-    private String status = "pending";
+    @Column(name = "title")
+    private String title;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -45,10 +37,10 @@ public class Document {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "document", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     @Builder.Default
-    private List<DocumentChunk> chunks = new ArrayList<>();
+    private List<ChatMessage> messages = new ArrayList<>();
 
     @PrePersist
     public void prePersist() {

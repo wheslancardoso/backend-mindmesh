@@ -1,5 +1,6 @@
 package com.mindmesh.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.hypersistence.utils.hibernate.type.array.FloatArrayType;
 import jakarta.persistence.*;
@@ -12,10 +13,7 @@ import java.util.UUID;
 
 /**
  * Representa um chunk de documento com embedding vetorial para busca semântica.
- * Armazena fragmentos de texto com seus embeddings para RAG.
- * 
- * O campo embedding usa o tipo VECTOR(1536) do PGVector para busca por
- * similaridade.
+ * Usa PGVector para armazenamento de embeddings VECTOR(1536).
  */
 @Entity
 @Table(name = "document_chunks")
@@ -30,16 +28,23 @@ public class DocumentChunk {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "document_id", nullable = false)
+    @Column(name = "document_id", nullable = false, insertable = false, updatable = false)
     private UUID documentId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id", nullable = false)
+    @JsonIgnore
+    private Document document;
+
+    @Column(name = "chunk_index", nullable = false)
+    private Integer chunkIndex;
 
     @Column(name = "content", columnDefinition = "TEXT", nullable = false)
     private String content;
 
-    /**
-     * Embedding vetorial de 1536 dimensões gerado pelo modelo OpenAI.
-     * Armazenado como tipo VECTOR(1536) no PostgreSQL via PGVector.
-     */
+    @Column(name = "token_count", nullable = false)
+    private Integer tokenCount;
+
     @Type(FloatArrayType.class)
     @Column(name = "embedding", columnDefinition = "vector(1536)")
     private float[] embedding;
@@ -48,19 +53,13 @@ public class DocumentChunk {
     @Column(name = "metadata", columnDefinition = "jsonb")
     private JsonNode metadata;
 
-    @Column(name = "token_count")
-    private Integer tokenCount;
-
-    @Column(name = "chunk_index")
-    private Integer chunkIndex;
-
-    /**
-     * Gera UUID automaticamente antes de persistir se não estiver definido.
-     */
     @PrePersist
     public void prePersist() {
         if (this.id == null) {
             this.id = UUID.randomUUID();
+        }
+        if (this.document != null) {
+            this.documentId = this.document.getId();
         }
     }
 }

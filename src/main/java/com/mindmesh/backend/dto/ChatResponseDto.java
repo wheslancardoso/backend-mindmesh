@@ -7,20 +7,27 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
- * DTO para resposta do chat.
+ * DTO de resposta do chat.
  */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-@Schema(description = "Resposta do chat com contexto RAG")
+@Schema(description = "Resposta do chat RAG")
 public class ChatResponseDto {
 
-    @Schema(description = "Resposta final gerada pelo modelo LLM com base no contexto recuperado", example = "De acordo com os documentos, o MindMesh é uma plataforma de busca semântica que utiliza RAG (Retrieval-Augmented Generation) para responder perguntas com base em documentos do usuário.")
+    @Schema(description = "ID da sessão de chat")
+    private UUID sessionId;
+
+    @Schema(description = "Resposta gerada pelo assistente")
     private String answer;
 
-    @Schema(description = "Lista de chunks recuperados e usados como contexto para gerar a resposta")
+    @Schema(description = "Chunks de contexto utilizados")
     private List<RetrievedChunkDto> chunks;
+
+    @Schema(description = "ID da mensagem persistida")
+    private UUID messageId;
 }
