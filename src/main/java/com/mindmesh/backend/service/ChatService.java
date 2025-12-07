@@ -8,7 +8,6 @@ import com.mindmesh.backend.repository.DocumentChunkRepository;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -39,8 +38,16 @@ public class ChatService {
 
     public ChatService(
             EmbeddingService embeddingService,
-            DocumentChunkRepository documentChunkRepository,
-            @Value("${openai.api.key}") String apiKey) {
+            DocumentChunkRepository documentChunkRepository) {
+
+        String apiKey = System.getenv("OPENAI_API_KEY");
+
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalArgumentException(
+                    "A variável de ambiente OPENAI_API_KEY não está definida. " +
+                            "Defina-a antes de iniciar a aplicação: export OPENAI_API_KEY=\"sua-chave\"");
+        }
+
         this.embeddingService = embeddingService;
         this.documentChunkRepository = documentChunkRepository;
 

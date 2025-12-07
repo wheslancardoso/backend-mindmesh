@@ -64,15 +64,21 @@ class ChatServiceTest {
 
         /**
          * Cria instância do ChatService injetando mocks via reflection.
+         * Necessário pois o construtor real usa System.getenv().
          */
         private ChatService createChatServiceWithMocks() throws Exception {
-                // Criar instância usando construtor com API key fake
-                ChatService service = new ChatService(
-                                embeddingService,
-                                documentChunkRepository,
-                                "test-api-key");
+                // Criar instância sem chamar construtor (pois ele depende de System.getenv)
+                ChatService service = org.objenesis.ObjenesisHelper.newInstance(ChatService.class);
 
-                // Substituir o chatModel via reflection
+                // Injetar todos os campos via reflection
+                Field embeddingServiceField = ChatService.class.getDeclaredField("embeddingService");
+                embeddingServiceField.setAccessible(true);
+                embeddingServiceField.set(service, embeddingService);
+
+                Field repositoryField = ChatService.class.getDeclaredField("documentChunkRepository");
+                repositoryField.setAccessible(true);
+                repositoryField.set(service, documentChunkRepository);
+
                 Field chatModelField = ChatService.class.getDeclaredField("chatModel");
                 chatModelField.setAccessible(true);
                 chatModelField.set(service, chatModel);

@@ -11,8 +11,6 @@ import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.timelimiter.TimeLimiter;
 import io.github.resilience4j.timelimiter.TimeLimiterConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -31,18 +29,16 @@ import java.util.function.Supplier;
  */
 @Slf4j
 @Service
-@ConditionalOnProperty(name = "embedding.mock.enabled", havingValue = "false", matchIfMissing = true)
 public class EmbeddingService {
 
-    protected static final String MODEL_NAME = "text-embedding-3-small";
-    protected static final int VECTOR_SIZE = 1536;
+    private static final String MODEL_NAME = "text-embedding-3-small";
 
     /**
      * Limite aproximado de caracteres para 8k tokens.
      * Estimativa: 1 token ≈ 4 caracteres em inglês, ~3 em português.
      * Usando 32k caracteres como buffer seguro para ~8k tokens.
      */
-    protected static final int MAX_CHARACTERS = 32_000;
+    private static final int MAX_CHARACTERS = 32_000;
 
     // Configurações de resiliência
     private static final int MAX_RETRY_ATTEMPTS = 3;
@@ -57,23 +53,19 @@ public class EmbeddingService {
     private final ExecutorService executor;
 
     /**
-     * Construtor principal. Aceita apiKey null para modo mock.
-     * 
-     * @param apiKey Chave da API OpenAI (pode ser null/vazio para mock)
+     * Construtor que obtém a API key via variável de ambiente.
+     * Lança exceção se OPENAI_API_KEY não estiver definida.
      */
-    public EmbeddingService(@Value("${openai.api.key:}") String apiKey) {
-        // Se apiKey for null ou vazio, estamos em modo mock
+    public EmbeddingService() {
+        String apiKey = System.getenv("OPENAI_API_KEY");
+
         if (apiKey == null || apiKey.isBlank()) {
-            log.warn("EmbeddingService inicializado SEM apiKey (modo mock esperado)");
-            this.embeddingModel = null;
-            this.retry = null;
-            this.timeLimiter = null;
-            this.circuitBreaker = null;
-            this.executor = null;
-            return;
+            throw new IllegalArgumentException(
+                    "A variável de ambiente OPENAI_API_KEY não está definida. " +
+                            "Defina-a antes de iniciar a aplicação: export OPENAI_API_KEY=\"sua-chave\"");
         }
 
-        // Modo real: configurar OpenAI + resiliência
+        // Configurar modelo OpenAI
         this.embeddingModel = OpenAiEmbeddingModel.builder()
                 .apiKey(apiKey)
                 .modelName(MODEL_NAME)
@@ -122,8 +114,7 @@ public class EmbeddingService {
         // Executor para operações assíncronas (timeout)
         this.executor = Executors.newCachedThreadPool();
 
-        log.info(
-                "EmbeddingService REAL inicializado com modelo: {} | Retry: {} tentativas | Timeout: {}s",
+        log.info("EmbeddingService inicializado com modelo: {} | Retry: {} tentativas | Timeout: {}s",
                 MODEL_NAME, MAX_RETRY_ATTEMPTS, TIMEOUT_DURATION.getSeconds());
     }
 

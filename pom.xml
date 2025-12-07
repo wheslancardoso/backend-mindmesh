@@ -62,6 +62,14 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- Objenesis: Criar instâncias sem construtor (para testes) -->
+		<dependency>
+			<groupId>org.objenesis</groupId>
+			<artifactId>objenesis</artifactId>
+			<version>3.3</version>
+			<scope>test</scope>
+		</dependency>
+
 		<!-- PGVector: Suporte a embeddings vetoriais no PostgreSQL -->
 		<dependency>
 			<groupId>com.pgvector</groupId>
