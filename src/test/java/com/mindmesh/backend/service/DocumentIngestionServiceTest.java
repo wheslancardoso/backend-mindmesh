@@ -1,5 +1,6 @@
 package com.mindmesh.backend.service;
 
+import com.mindmesh.backend.dto.IngestionResult;
 import com.mindmesh.backend.model.Document;
 import com.mindmesh.backend.model.DocumentChunk;
 import com.mindmesh.backend.repository.DocumentChunkRepository;
@@ -63,7 +64,11 @@ class DocumentIngestionServiceTest {
                 String contentType = "text/plain";
 
                 // Act
-                Document document = documentIngestionService.ingestDocument(userId, filename, bytes, contentType);
+                IngestionResult result = documentIngestionService.ingestDocument(userId, filename, bytes, contentType);
+                Document document = result.document();
+
+                // Assert - Resultado não é duplicado
+                assertFalse(result.isDuplicate(), "Primeiro upload não deve ser duplicado");
 
                 // Assert - Documento foi criado
                 assertNotNull(document, "Documento não deve ser nulo");
@@ -117,14 +122,22 @@ class DocumentIngestionServiceTest {
                 byte[] bytes = loadResource("sample.txt");
 
                 // Primeira ingestão
-                Document first = documentIngestionService.ingestDocument(userId, "original.txt", bytes, "text/plain");
+                IngestionResult firstResult = documentIngestionService.ingestDocument(userId, "original.txt", bytes,
+                                "text/plain");
 
                 // Segunda ingestão com mesmo conteúdo
-                Document second = documentIngestionService.ingestDocument(userId, "copia.txt", bytes, "text/plain");
+                IngestionResult secondResult = documentIngestionService.ingestDocument(userId, "copia.txt", bytes,
+                                "text/plain");
+
+                // Assert - primeiro não é duplicado, segundo é
+                assertFalse(firstResult.isDuplicate(), "Primeiro upload não deve ser duplicado");
+                assertTrue(secondResult.isDuplicate(), "Segundo upload deve ser duplicado");
 
                 // Assert - deve retornar o mesmo documento
-                assertEquals(first.getId(), second.getId(), "Deve retornar documento existente");
-                assertEquals(first.getFileHash(), second.getFileHash(), "FileHash deve ser igual");
+                assertEquals(firstResult.document().getId(), secondResult.document().getId(),
+                                "Deve retornar documento existente");
+                assertEquals(firstResult.document().getFileHash(), secondResult.document().getFileHash(),
+                                "FileHash deve ser igual");
         }
 
         @Test
@@ -132,8 +145,9 @@ class DocumentIngestionServiceTest {
         void testDeleteDocumentRemovesChunksAlso() throws IOException {
                 UUID userId = UUID.randomUUID();
                 byte[] bytes = loadResource("sample.txt");
-                Document document = documentIngestionService.ingestDocument(userId, "para_deletar.txt", bytes,
+                IngestionResult result = documentIngestionService.ingestDocument(userId, "para_deletar.txt", bytes,
                                 "text/plain");
+                Document document = result.document();
 
                 assertTrue(documentRepository.existsById(document.getId()), "Documento deve existir antes da deleção");
 
@@ -157,7 +171,9 @@ class DocumentIngestionServiceTest {
         void testGetChunkCount() throws IOException {
                 UUID userId = UUID.randomUUID();
                 byte[] bytes = loadResource("sample.txt");
-                Document document = documentIngestionService.ingestDocument(userId, "contar.txt", bytes, "text/plain");
+                IngestionResult result = documentIngestionService.ingestDocument(userId, "contar.txt", bytes,
+                                "text/plain");
+                Document document = result.document();
 
                 int count = documentIngestionService.getChunkCount(document.getId());
 

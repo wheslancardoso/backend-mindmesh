@@ -1,6 +1,7 @@
 package com.mindmesh.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mindmesh.backend.dto.IngestionResult;
 import com.mindmesh.backend.model.Document;
 import com.mindmesh.backend.repository.DocumentChunkRepository;
 import com.mindmesh.backend.repository.DocumentRepository;
@@ -76,9 +77,10 @@ class DocumentControllerTest {
                                 "Conteúdo de teste para upload".getBytes());
 
                 Document mockDocument = createMockDocument(TEST_DOCUMENT_ID, TEST_USER_ID, "sample.txt");
+                IngestionResult mockResult = IngestionResult.newDocument(mockDocument);
 
                 when(documentIngestionService.ingestDocument(any(), anyString(), any(byte[].class), anyString()))
-                                .thenReturn(mockDocument);
+                                .thenReturn(mockResult);
                 when(documentIngestionService.getChunkCount(TEST_DOCUMENT_ID)).thenReturn(5);
 
                 // Act & Assert

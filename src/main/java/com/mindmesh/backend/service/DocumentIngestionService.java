@@ -1,5 +1,6 @@
 package com.mindmesh.backend.service;
 
+import com.mindmesh.backend.dto.IngestionResult;
 import com.mindmesh.backend.model.Document;
 import com.mindmesh.backend.model.DocumentChunk;
 import com.mindmesh.backend.repository.DocumentChunkRepository;
@@ -34,10 +35,11 @@ public class DocumentIngestionService {
 
     /**
      * Ingere um documento: extrai texto, gera chunks com embeddings e persiste.
+     * Retorna IngestionResult com flag isDuplicate para identificar duplicatas.
      * Status: pending → processing → completed
      */
     @Transactional
-    public Document ingestDocument(UUID userId, String filename, byte[] fileBytes, String contentType) {
+    public IngestionResult ingestDocument(UUID userId, String filename, byte[] fileBytes, String contentType) {
         long startTime = System.currentTimeMillis();
 
         log.info("[userId={}] Iniciando ingestão: {} ({} bytes)", userId, filename, fileBytes.length);
@@ -45,11 +47,11 @@ public class DocumentIngestionService {
         // 1. Calcular hash SHA-256 para deduplicação
         String fileHash = calculateHash(fileBytes);
 
-        // 2. Verificar duplicata
+        // 2. Verificar duplicata - retorna IngestionResult com flag
         Optional<Document> existing = documentRepository.findByUserIdAndFileHash(userId, fileHash);
         if (existing.isPresent()) {
             log.warn("[userId={}] Documento duplicado: {} (hash: {})", userId, filename, fileHash);
-            return existing.get();
+            return IngestionResult.duplicate(existing.get());
         }
 
         // 3. Criar documento com status PENDING
@@ -103,7 +105,7 @@ public class DocumentIngestionService {
             log.info("[documentId={}] Ingestão concluída! Chunks: {}, Tempo: {}ms",
                     documentId, chunks.size(), elapsed);
 
-            return document;
+            return IngestionResult.newDocument(document);
 
         } catch (Exception e) {
             log.error("[documentId={}] Erro na ingestão: {}", documentId, e.getMessage(), e);

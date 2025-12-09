@@ -1,14 +1,13 @@
 package com.mindmesh.backend.controller;
 
 import com.mindmesh.backend.dto.DocumentUploadResponseDto;
+import com.mindmesh.backend.dto.IngestionResult;
 import com.mindmesh.backend.model.Document;
 import com.mindmesh.backend.repository.DocumentChunkRepository;
 import com.mindmesh.backend.repository.DocumentRepository;
 import com.mindmesh.backend.service.DocumentIngestionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,9 +41,10 @@ public class DocumentController {
     @Operation(summary = "Upload de documento", description = """
             Faz upload e processamento completo de um documento.
             Retorna documentId, filename, fileHash, status e size.
+            Se o documento já existir (mesmo hash), retorna status 'duplicate'.
             """)
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Documento processado com sucesso"),
+            @ApiResponse(responseCode = "200", description = "Documento processado com sucesso ou duplicado detectado"),
             @ApiResponse(responseCode = "400", description = "Arquivo inválido ou vazio"),
             @ApiResponse(responseCode = "500", description = "Erro interno")
     })
@@ -67,9 +67,25 @@ public class DocumentController {
                 userId, filename, size);
 
         byte[] bytes = file.getBytes();
-        Document document = documentIngestionService.ingestDocument(userId, filename, bytes, contentType);
+        IngestionResult result = documentIngestionService.ingestDocument(userId, filename, bytes, contentType);
+        Document document = result.document();
 
         int chunksGenerated = documentIngestionService.getChunkCount(document.getId());
+
+        // Diferencia resposta: documento novo vs duplicado
+        if (result.isDuplicate()) {
+            log.info("Documento duplicado detectado: {} (userId: {})", document.getId(), userId);
+            return ResponseEntity.ok(DocumentUploadResponseDto.builder()
+                    .documentId(document.getId())
+                    .filename(document.getFilename())
+                    .fileHash(document.getFileHash())
+                    .status("duplicate")
+                    .size(size)
+                    .chunksGenerated(chunksGenerated)
+                    .message("Documento já existe para este usuário")
+                    .createdAt(document.getCreatedAt())
+                    .build());
+        }
 
         log.info("Documento {} criado com {} chunks", document.getId(), chunksGenerated);
 
